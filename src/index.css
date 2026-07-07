@@ -1,0 +1,237 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --color-background: #c3c9f2;
+  --color-foreground: #1b1f3b;
+  --color-muted: #6b7192;
+  --color-muted-foreground: #8a90b0;
+
+  --color-card: #ffffff;
+  --color-card-strong: #ffffff;
+
+  --color-brand: #3b56f0;
+  --color-brand-ink: #2a3fd0;
+  --color-brand-soft: #e6e9fd;
+
+  --color-surface: #edeffb;
+  --color-surface-2: #e2e6f9;
+  --color-border: #d7dbf3;
+
+  --color-success: #16a34a;
+  --color-success-soft: #dcfce7;
+  --color-danger: #e23a52;
+  --color-danger-soft: #fbe3e7;
+
+  --radius-app: 1.25rem;
+
+  /* Motion — one spring family: response ~0.35s */
+  --animate-shimmer: shimmer 1.4s ease-in-out infinite;
+  --animate-loadbar: loadbar 1.1s ease-in-out infinite;
+  --animate-radar: radar 1.8s ease-out infinite;
+  --animate-breathe: breathe 2.4s ease-in-out infinite;
+  --animate-toast-in: toast-in 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-core-fill: core-fill 0.35s ease-out both;
+  --animate-pop-in: pop-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  --animate-draw: draw 0.9s ease-in-out both;
+}
+
+:root {
+  --stage-dot: rgba(90, 100, 180, 0.28);
+}
+
+* {
+  border-color: var(--color-border);
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Dark mode tokens */
+.dark {
+  --color-background: #0d1030;
+  --color-foreground: #eef0ff;
+  --color-muted: #a6abcf;
+  --color-muted-foreground: #7c82b4;
+
+  --color-card: #191d43;
+  --color-card-strong: #20255a;
+
+  --color-brand: #6a82ff;
+  --color-brand-ink: #91a3ff;
+  --color-brand-soft: #24295e;
+
+  --color-surface: #161a3d;
+  --color-surface-2: #1d2250;
+  --color-border: #2a3068;
+
+  --stage-dot: rgba(150, 165, 255, 0.16);
+}
+
+@layer utilities {
+  .glass-window {
+    background: linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--color-card) 92%, transparent),
+      color-mix(in srgb, var(--color-surface) 88%, transparent)
+    );
+    box-shadow:
+      0 30px 80px -30px rgba(30, 38, 90, 0.45),
+      0 2px 0 rgba(255, 255, 255, 0.5) inset;
+  }
+
+  .stage-dots {
+    background-image: radial-gradient(var(--stage-dot) 1.4px, transparent 1.4px);
+    background-size: 22px 22px;
+  }
+
+  /* Glass skeleton with a slow left-to-right sheen — never a blank spinner */
+  .skeleton {
+    position: relative;
+    overflow: hidden;
+    background-color: color-mix(in srgb, var(--color-muted) 14%, transparent);
+  }
+  .skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--color-card) 65%, transparent),
+      transparent
+    );
+    animation: var(--animate-shimmer);
+  }
+
+  /* Text shimmer used by "Switching…" / "Applying…" inline states */
+  .text-shimmer {
+    background: linear-gradient(
+      90deg,
+      var(--color-muted-foreground) 0%,
+      var(--color-brand) 45%,
+      var(--color-muted-foreground) 90%
+    );
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: shimmer-text 1.4s linear infinite;
+  }
+}
+
+@keyframes loadbar {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(240%);
+  }
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes shimmer-text {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Radar sweep — connecting-state halos pulse outward like a heartbeat */
+@keyframes radar {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+
+/* Splash halos breathe 0.92 -> 1.0 */
+@keyframes breathe {
+  0%,
+  100% {
+    transform: scale(0.92);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+}
+
+@keyframes toast-in {
+  0% {
+    transform: translateY(-14px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Connected core floods radially */
+@keyframes core-fill {
+  0% {
+    transform: scale(0.55);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes pop-in {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* SVG stroke draw for the map route + success checks */
+@keyframes draw {
+  0% {
+    stroke-dashoffset: var(--draw-length, 400);
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

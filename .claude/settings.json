@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:oqusvpn.vercel.app)",
+      "Bash(node \"C:/Users/macdo/AppData/Local/Temp/claude/c--Users-macdo-Downloads-web-app-with-react--1-/16f0d3c9-333d-48da-a284-b398b1d301a0/scratchpad/ui-test.mjs\")",
+      "Bash(echo \"---EXIT:$?---\")",
+      "Bash(cp \"C:/Users/macdo/AppData/Local/Temp/claude/c--Users-macdo-Downloads-web-app-with-react--1-/16f0d3c9-333d-48da-a284-b398b1d301a0/scratchpad/ui-test.mjs\" ./__uitest.mjs)",
+      "Bash(node ./__uitest.mjs)",
+      "Bash(node ./__uitest2.mjs)",
+      "Bash(rm -f ./__uitest.mjs ./__uitest2.mjs)",
+      "Bash(rm -rf ./dist)",
+      "Bash(npm uninstall *)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\('deps clean:', !JSON.stringify\\(p.devDependencies\\).includes\\('playwright'\\)\\)\")",
+      "Bash(grep -E \"^\\\\.git$|gitignore\")",
+      "Bash(gh auth *)",
+      "Bash(git config *)",
+      "Bash(echo \"user.name: $\\(git config user.name\\)\")",
+      "Bash(echo \"user.email: $\\(git config user.email\\)\")",
+      "Bash(git --version)",
+      "Bash(echo \"git version: $\\(git --version\\)\")",
+      "Bash(git init *)",
+      "Bash(git branch *)",
+      "Bash(git add *)",
+      "Bash(git rm *)"
+    ]
+  }
+}
