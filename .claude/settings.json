@@ -21,7 +21,16 @@
       "Bash(git init *)",
       "Bash(git branch *)",
       "Bash(git add *)",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "Bash(git commit -q -m '@ *)",
+      "Bash(git remote *)",
+      "Bash(git ls-remote *)",
+      "Bash(git push *)",
+      "Bash(node_modules/.bin/vite --port 5199 --strictPort)",
+      "Bash(node -e \"require\\('playwright'\\); console.log\\('playwright OK'\\)\")",
+      "Bash(node_modules/.bin/vite --port 5200 --strictPort)",
+      "Bash(node_modules/.bin/vite --port 5273)",
+      "Bash(node ./__flowtest.mjs)"
     ]
   }
 }

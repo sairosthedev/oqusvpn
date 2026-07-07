@@ -18,3 +18,7 @@ dist/
 # Build artifacts & local settings
 tsconfig.tsbuildinfo
 .claude/settings.local.json
+# Electron build output
+release/
+# Native tunnel binaries (fetched/built per machine)
+resources/bin/*.exe

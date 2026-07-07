@@ -10,6 +10,7 @@ import {
 } from "react"
 import { servers, type Server } from "./data"
 import { useUi } from "./ui-context"
+import { hasBridge, getTunnelConfig } from "./oqus-bridge"
 
 export type Status = "disconnected" | "connecting" | "connected"
 export type Appearance = "auto" | "light" | "dark"
@@ -80,13 +81,40 @@ export function VpnProvider({ children }: { children: ReactNode }) {
     }
   }, [status])
 
+  // In Electron, the real tunnel pushes status to us; mirror it into React
+  // state (+ toasts/timer). In a browser this effect is a no-op.
+  useEffect(() => {
+    if (!hasBridge() || !window.oqus) return
+    return window.oqus.onStatus(({ status: s, detail }) => {
+      setStatus(s as Status)
+      if (s === "connected") {
+        setElapsed(0)
+        toast(detail || "Connected", "success")
+      } else if (s === "disconnected") {
+        toast(detail?.startsWith("Failed") ? detail : "Disconnected · you're exposed", "danger")
+      }
+    })
+  }, [toast])
+
   // The connect handshake, shared by the connect button and the post-login resume.
   const beginConnect = useCallback(() => {
+    const s = servers.find((sv) => sv.id === serverId) ?? servers[0]
+    // Real tunnel path (Electron): status/toasts arrive via the onStatus effect.
+    if (hasBridge() && window.oqus) {
+      setStatus("connecting")
+      window.oqus.connect(getTunnelConfig(s)).then((res) => {
+        if (!res.ok) {
+          setStatus("disconnected")
+          toast(res.error || "Connection failed", "danger")
+        }
+      })
+      return
+    }
+    // Browser mock path.
     setStatus("connecting")
     window.setTimeout(() => {
       setStatus("connected")
       setElapsed(0)
-      const s = servers.find((sv) => sv.id === serverId) ?? servers[0]
       toast(`Connected · ${s.city}`, "success")
     }, 1800)
   }, [serverId, toast])
@@ -95,6 +123,10 @@ export function VpnProvider({ children }: { children: ReactNode }) {
     const prev = statusRef.current
     if (prev === "connecting") return
     if (prev === "connected") {
+      if (hasBridge() && window.oqus) {
+        window.oqus.disconnect() // status + toast arrive via the onStatus effect
+        return
+      }
       setStatus("disconnected")
       toast("Disconnected · you're exposed", "danger")
       return
@@ -120,7 +152,8 @@ export function VpnProvider({ children }: { children: ReactNode }) {
   // Logging out drops any active tunnel — connecting requires an account.
   useEffect(() => {
     if (!loggedIn && statusRef.current !== "disconnected") {
-      setStatus("disconnected")
+      if (hasBridge() && window.oqus) window.oqus.disconnect()
+      else setStatus("disconnected")
     }
   }, [loggedIn])
 
