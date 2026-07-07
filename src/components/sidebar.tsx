@@ -1,4 +1,4 @@
-import { Home, Globe, BarChart3, Settings, Crown, Sun, Moon, LogIn } from "lucide-react"
+import { Home, Globe, BarChart3, Settings, Sun, Moon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Asterisk } from "./brand"
 import { useVpn } from "@/lib/vpn-context"
@@ -16,14 +16,12 @@ const items: { id: Tab; label: string; icon: typeof Home; key: string }[] = [
 export function Sidebar({
   active,
   onChange,
-  onUpgrade,
 }: {
   active: Tab
   onChange: (t: Tab) => void
-  onUpgrade: () => void
 }) {
   const { theme, toggleTheme } = useVpn()
-  const { loggedIn, setLoginOpen } = useUi()
+  const { loggedIn, setLoggedIn, toast } = useUi()
 
   return (
     <aside className="flex w-64 shrink-0 flex-col gap-6 border-r border-border/70 bg-surface/60 p-5">
@@ -75,51 +73,21 @@ export function Sidebar({
         })}
       </nav>
 
-      <div className="mt-auto flex flex-col gap-4">
-        <div className="rounded-2xl bg-brand p-4 text-white shadow-lg shadow-brand/30">
-          <div className="flex items-center gap-2 text-sm font-semibold">
-            <Crown className="h-4 w-4" />
-            Go Premium
-          </div>
-          <p className="mt-1.5 text-xs leading-relaxed text-white/80">
-            Faster servers · 60+ regions · ad-free experience
-          </p>
+      <div className="mt-auto px-1">
+        {loggedIn ? (
           <button
             type="button"
-            onClick={onUpgrade}
-            className="mt-3 w-full rounded-full bg-white py-2 text-sm font-semibold text-brand transition-transform hover:scale-[1.02]"
+            onClick={() => {
+              setLoggedIn(false)
+              toast("Signed out", "brand")
+            }}
+            className="text-sm font-medium text-muted transition-colors hover:text-danger"
           >
-            Upgrade
+            Log out
           </button>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setLoginOpen(true)}
-          className="flex items-center gap-3 rounded-xl p-2 text-left transition-colors hover:bg-surface-2"
-        >
-          {loggedIn ? (
-            <>
-              <span className="grid h-9 w-9 place-items-center rounded-full bg-brand text-sm font-semibold text-white">
-                AO
-              </span>
-              <span className="leading-tight">
-                <span className="block text-sm font-semibold">Ada Okonkwo</span>
-                <span className="block text-xs text-muted-foreground">Premium · synced</span>
-              </span>
-            </>
-          ) : (
-            <>
-              <span className="grid h-9 w-9 place-items-center rounded-full bg-surface-2 text-muted">
-                <LogIn className="h-4 w-4" />
-              </span>
-              <span className="leading-tight">
-                <span className="block text-sm font-semibold">Log in</span>
-                <span className="block text-xs text-muted-foreground">Sync Premium across devices</span>
-              </span>
-            </>
-          )}
-        </button>
+        ) : (
+          <p className="text-xs text-muted-foreground">Not signed in</p>
+        )}
       </div>
     </aside>
   )

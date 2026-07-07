@@ -35,7 +35,7 @@ function systemTheme(): Theme {
 }
 
 export function VpnProvider({ children }: { children: ReactNode }) {
-  const { toast } = useUi()
+  const { toast, loggedIn, setLoginOpen, pendingConnect, setPendingConnect } = useUi()
   const [status, setStatus] = useState<Status>("disconnected")
   const [serverId, setServerId] = useState<string>(servers[0].id)
   const [elapsed, setElapsed] = useState(2757) // 00:45:57 to match spec
@@ -80,15 +80,8 @@ export function VpnProvider({ children }: { children: ReactNode }) {
     }
   }, [status])
 
-  const toggleConnection = useCallback(() => {
-    const prev = statusRef.current
-    if (prev === "connecting") return
-    if (prev === "connected") {
-      setStatus("disconnected")
-      toast("Disconnected · you're exposed", "danger")
-      return
-    }
-    // start connecting sequence
+  // The connect handshake, shared by the connect button and the post-login resume.
+  const beginConnect = useCallback(() => {
     setStatus("connecting")
     window.setTimeout(() => {
       setStatus("connected")
@@ -97,6 +90,39 @@ export function VpnProvider({ children }: { children: ReactNode }) {
       toast(`Connected · ${s.city}`, "success")
     }, 1800)
   }, [serverId, toast])
+
+  const toggleConnection = useCallback(() => {
+    const prev = statusRef.current
+    if (prev === "connecting") return
+    if (prev === "connected") {
+      setStatus("disconnected")
+      toast("Disconnected · you're exposed", "danger")
+      return
+    }
+    // Connecting requires an account — prompt for login and remember the intent.
+    if (!loggedIn) {
+      setPendingConnect(true)
+      setLoginOpen(true)
+      toast("Sign in to connect", "brand")
+      return
+    }
+    beginConnect()
+  }, [loggedIn, beginConnect, setLoginOpen, setPendingConnect, toast])
+
+  // Once the user logs in with a pending connect intent, resume the handshake.
+  useEffect(() => {
+    if (loggedIn && pendingConnect) {
+      setPendingConnect(false)
+      if (statusRef.current === "disconnected") beginConnect()
+    }
+  }, [loggedIn, pendingConnect, beginConnect, setPendingConnect])
+
+  // Logging out drops any active tunnel — connecting requires an account.
+  useEffect(() => {
+    if (!loggedIn && statusRef.current !== "disconnected") {
+      setStatus("disconnected")
+    }
+  }, [loggedIn])
 
   const selectServer = useCallback(
     (id: string) => {

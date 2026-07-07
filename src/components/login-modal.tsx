@@ -38,7 +38,7 @@ export function LoginModal({
               Welcome back
             </Dialog.Title>
             <Dialog.Description className="mt-1.5 text-sm text-muted">
-              Log in to sync Premium across your devices
+              Log in to connect and sync across your devices
             </Dialog.Description>
           </div>
 

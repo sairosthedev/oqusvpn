@@ -11,7 +11,6 @@ import {
   Sun,
   Languages,
   ServerCog,
-  Crown,
   Smartphone,
   LogOut,
 } from "lucide-react"
@@ -30,9 +29,9 @@ const categories = [
 
 const languages = ["English", "Hausa", "Yoruba", "Swahili", "Hindi", "Urdu"]
 
-export function SettingsTab({ onUpgrade }: { onUpgrade: () => void }) {
+export function SettingsTab() {
   const { appearance, setAppearance } = useVpn()
-  const { toast, setLoginOpen, loggedIn, setLoggedIn } = useUi()
+  const { toast, loggedIn, setLoggedIn } = useUi()
   const [active, setActive] = useState<(typeof categories)[number]["id"]>("connection")
 
   const [autoConnect, setAutoConnect] = useState(true)
@@ -62,7 +61,7 @@ export function SettingsTab({ onUpgrade }: { onUpgrade: () => void }) {
             </span>
             <span className="flex-1 leading-tight">
               <span className="block text-sm font-semibold">Ada Okonkwo</span>
-              <span className="block text-xs text-muted-foreground">{loggedIn ? "Premium · synced" : "Free plan"}</span>
+              <span className="block text-xs text-muted-foreground">{loggedIn ? "Signed in" : "Not signed in"}</span>
             </span>
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
           </button>
@@ -240,22 +239,6 @@ export function SettingsTab({ onUpgrade }: { onUpgrade: () => void }) {
 
             {active === "account" && (
               <div className="mt-4 flex flex-col gap-4">
-                {/* upgrade banner */}
-                <button
-                  type="button"
-                  onClick={onUpgrade}
-                  className="flex items-center gap-3 rounded-2xl bg-brand p-4 text-left text-white shadow-lg shadow-brand/30 transition hover:scale-[1.01]"
-                >
-                  <span className="grid h-10 w-10 place-items-center rounded-full bg-white/20">
-                    <Crown className="h-5 w-5" />
-                  </span>
-                  <span className="flex-1 leading-tight">
-                    <span className="block text-sm font-semibold">Upgrade to Premium</span>
-                    <span className="block text-xs text-white/80">Faster servers · more regions · ad-free</span>
-                  </span>
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-
                 <div className="flex flex-col divide-y divide-border/60">
                   <Row
                     icon={User}
@@ -283,13 +266,9 @@ export function SettingsTab({ onUpgrade }: { onUpgrade: () => void }) {
                     <LogOut className="h-4 w-4" /> Sign out
                   </button>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => setLoginOpen(true)}
-                    className="rounded-xl bg-brand py-2.5 text-sm font-semibold text-white transition hover:bg-brand-ink"
-                  >
-                    Log in to sync
-                  </button>
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    You&apos;ll be asked to sign in when you connect.
+                  </p>
                 )}
               </div>
             )}

@@ -15,6 +15,8 @@ type UiState = {
   setLoginOpen: (v: boolean) => void
   loggedIn: boolean
   setLoggedIn: (v: boolean) => void
+  pendingConnect: boolean
+  setPendingConnect: (v: boolean) => void
   paletteOpen: boolean
   setPaletteOpen: (v: boolean) => void
   toasts: Toast[]
@@ -28,6 +30,7 @@ export function UiProvider({ children }: { children: ReactNode }) {
   const [focusMode, setFocusMode] = useState(false)
   const [loginOpen, setLoginOpen] = useState(false)
   const [loggedIn, setLoggedIn] = useState(false)
+  const [pendingConnect, setPendingConnect] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
   const nextId = useRef(1)
@@ -53,13 +56,15 @@ export function UiProvider({ children }: { children: ReactNode }) {
       setLoginOpen,
       loggedIn,
       setLoggedIn,
+      pendingConnect,
+      setPendingConnect,
       paletteOpen,
       setPaletteOpen,
       toasts,
       toast,
       dismissToast,
     }),
-    [focusMode, loginOpen, loggedIn, paletteOpen, toasts, toast, dismissToast],
+    [focusMode, loginOpen, loggedIn, pendingConnect, paletteOpen, toasts, toast, dismissToast],
   )
 
   return <UiContext.Provider value={value}>{children}</UiContext.Provider>
