@@ -34,6 +34,45 @@ export const servers: Server[] = [
 export const userLocation = { city: "Lagos", country: "Nigeria", lat: 6.52, lng: 3.38 }
 
 /**
+ * Turn a backend server (from GET /api/servers) into the client `Server` shape.
+ * The backend doesn't track ping/load (they're cosmetic), so we derive stable
+ * values: reuse a matching static entry's numbers when the id is known,
+ * otherwise hash the id into a fixed pseudo-ping/load so they don't flicker
+ * across refetches.
+ */
+export function hydrateServer(s: {
+  id: string
+  country: string
+  city: string
+  code: string
+  region: string
+  lat: number
+  lng: number
+  fastest?: boolean
+}): Server {
+  const known = servers.find((k) => k.id === s.id)
+  let hash = 0
+  for (let i = 0; i < s.id.length; i++) hash = (hash * 31 + s.id.charCodeAt(i)) >>> 0
+  const region = (["Recommended", "Africa", "Europe", "Americas", "Asia"] as const).includes(
+    s.region as Server["region"],
+  )
+    ? (s.region as Server["region"])
+    : "Recommended"
+  return {
+    id: s.id,
+    country: s.country,
+    city: s.city,
+    code: s.code,
+    region,
+    lat: s.lat,
+    lng: s.lng,
+    fastest: !!s.fastest,
+    ping: known?.ping ?? 20 + (hash % 110),
+    load: known?.load ?? 28 + ((hash >> 8) % 42),
+  }
+}
+
+/**
  * Equirectangular projection of lat/lng to 0–100% coordinates within a map panel.
  * We frame a sub-region of the globe (not the full 360°) so the plotted cities
  * spread across the panel instead of clustering in the middle.

@@ -1,7 +1,6 @@
 import { useState } from "react"
 import { MapPin, ShieldAlert, ShieldCheck, Loader2, Power, ArrowLeftRight } from "lucide-react"
 import {
-  servers,
   userLocation,
   project,
   distanceKm,
@@ -20,7 +19,7 @@ const qualityToneCls: Record<string, string> = {
 }
 
 export function LocationsMap() {
-  const { server, status, switching, selectServer, toggleConnection } = useVpn()
+  const { servers, server, status, switching, selectServer, toggleConnection } = useVpn()
   const [focusedId, setFocusedId] = useState<string | null>(server.id)
 
   const you = project(userLocation.lat, userLocation.lng)

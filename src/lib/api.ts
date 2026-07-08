@@ -64,6 +64,19 @@ export type UsageStats = {
 }
 export type SessionReport = { serverId?: string; bytesDown: number; bytesUp: number; durationSec: number }
 
+// Public server view returned by GET /api/servers (no host/secret).
+export type PublicServer = {
+  id: string
+  country: string
+  city: string
+  code: string
+  region: string
+  lat: number
+  lng: number
+  fastest: boolean
+  enabled: boolean
+}
+
 export type AdminServer = {
   serverId: string
   country: string
@@ -99,6 +112,9 @@ export const api = {
   verify: (token: string, input: { fullName: string; phone: string }) =>
     request<{ user: AuthUser }>("/api/auth/verify", { method: "POST", token, body: JSON.stringify(input) }),
   me: (token: string) => request<{ user: AuthUser }>("/api/auth/me", { token }),
+
+  // public list of live regions (admin-managed, read from the DB)
+  listServers: () => request<{ servers: PublicServer[] }>("/api/servers"),
   getAccessKey: (token: string, serverId: string) =>
     request<AccessKeyResponse>(`/api/access-key?serverId=${encodeURIComponent(serverId)}`, { token }),
 

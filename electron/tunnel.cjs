@@ -68,6 +68,20 @@ class TunnelManager extends EventEmitter {
     this.connectedAt = null
     this.serverId = ""
     this._statsTimer = null
+    // Self-heal: if a previous run crashed / was force-closed while connected,
+    // the kill switch may have left the firewall blocking all outbound traffic.
+    // Clear any stale block on startup so the network is never left broken.
+    this.recoverStaleKillSwitch()
+  }
+
+  // Restore outbound connectivity and drop leftover OqusKS-* rules. Safe to run
+  // anytime (no-op if nothing is stale). Best-effort — needs admin, quiet if not.
+  async recoverStaleKillSwitch() {
+    if (process.platform !== "win32") return
+    await runQuiet("netsh", ["advfirewall", "set", "allprofiles", "firewallpolicy", "blockinbound,allowoutbound"])
+    for (const name of KS_RULES) {
+      await runQuiet("netsh", ["advfirewall", "firewall", "delete", "rule", `name=${name}`])
+    }
   }
 
   getStatus() {

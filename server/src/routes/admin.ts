@@ -6,6 +6,7 @@ import { UserModel } from "../models/user"
 import { ServerModel } from "../models/server"
 import { SessionModel } from "../models/session"
 import { parseAccessKey } from "../lib/ss"
+import { codeForCountry, regionForCode } from "../lib/country"
 
 export const adminRouter = Router()
 adminRouter.use(requireAuth, requireAdmin)
@@ -61,7 +62,11 @@ adminRouter.post("/servers", async (req, res) => {
   }
   const creds = resolveCreds(parsed.data)
   if (!creds.host || !creds.secret) return res.status(400).json({ error: "Provide accessKey, or host + secret" })
-  const server = await ServerModel.create({ ...parsed.data, ...creds })
+  // Auto-fill the flag code + region from the country name when not supplied,
+  // so the admin only needs to type the country and the flag just appears.
+  const code = parsed.data.code || codeForCountry(parsed.data.country)
+  const region = parsed.data.region || regionForCode(code)
+  const server = await ServerModel.create({ ...parsed.data, code, region, ...creds })
   res.status(201).json({ server: adminServer(server) })
 })
 

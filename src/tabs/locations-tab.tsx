@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Search, Check, List, Map, Loader2 } from "lucide-react"
-import { servers, barsFor, qualityFor, type Server } from "@/lib/data"
+import { barsFor, qualityFor, type Server } from "@/lib/data"
 import { useVpn } from "@/lib/vpn-context"
 import { formatDuration, cn } from "@/lib/utils"
 import { SignalBars } from "@/components/brand"
@@ -19,7 +19,7 @@ const qualityToneCls: Record<string, string> = {
 }
 
 export function LocationsTab() {
-  const { server, selectServer, status, elapsed, toggleConnection, switching } = useVpn()
+  const { servers, server, selectServer, status, elapsed, toggleConnection, switching } = useVpn()
   const [rawQuery, setRawQuery] = useState("")
   const [query, setQuery] = useState("")
   const [view, setView] = useState<View>("list")
@@ -47,7 +47,7 @@ export function LocationsTab() {
     const map: Record<string, Server[]> = {}
     for (const s of filtered) (map[s.region] ??= []).push(s)
     return order.filter((r) => map[r]?.length).map((r) => [r, map[r]] as const)
-  }, [query])
+  }, [query, servers])
 
   const quality = qualityFor(server.ping)
 

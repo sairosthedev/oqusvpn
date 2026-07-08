@@ -1,26 +1,12 @@
 import type { ComponentType } from "react"
-import CA from "country-flag-icons/react/3x2/CA"
-import US from "country-flag-icons/react/3x2/US"
-import DE from "country-flag-icons/react/3x2/DE"
-import NG from "country-flag-icons/react/3x2/NG"
-import ZA from "country-flag-icons/react/3x2/ZA"
-import KE from "country-flag-icons/react/3x2/KE"
-import ZW from "country-flag-icons/react/3x2/ZW"
-import GB from "country-flag-icons/react/3x2/GB"
-import NL from "country-flag-icons/react/3x2/NL"
-import FR from "country-flag-icons/react/3x2/FR"
-import BR from "country-flag-icons/react/3x2/BR"
-import IN from "country-flag-icons/react/3x2/IN"
-import PK from "country-flag-icons/react/3x2/PK"
-import JP from "country-flag-icons/react/3x2/JP"
-import SG from "country-flag-icons/react/3x2/SG"
+// Every ISO 3166-1 flag, keyed by alpha-2 code — so an admin can add a server
+// in any country and its flag renders with no code change here.
+import * as AllFlags from "country-flag-icons/react/3x2"
 import { cn } from "@/lib/utils"
 
 type FlagIcon = ComponentType<{ className?: string; title?: string }>
 
-const flags: Record<string, FlagIcon> = {
-  CA, US, DE, NG, ZA, KE, ZW, GB, NL, FR, BR, IN, PK, JP, SG,
-}
+const flags = AllFlags as unknown as Record<string, FlagIcon>
 
 /**
  * Renders a real SVG flag by ISO 3166-1 alpha-2 code — works everywhere,

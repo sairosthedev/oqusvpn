@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import * as Dialog from "@radix-ui/react-dialog"
 import { Search, Power, Command } from "lucide-react"
-import { servers, barsFor } from "@/lib/data"
+import { barsFor } from "@/lib/data"
 import { useVpn } from "@/lib/vpn-context"
 import { useUi } from "@/lib/ui-context"
 import { cn } from "@/lib/utils"
@@ -10,7 +10,7 @@ import { Flag } from "./flag"
 
 export function CommandPalette() {
   const { paletteOpen, setPaletteOpen } = useUi()
-  const { server, status, selectServer, toggleConnection } = useVpn()
+  const { servers, server, status, selectServer, toggleConnection } = useVpn()
   const [query, setQuery] = useState("")
   const [active, setActive] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -19,7 +19,7 @@ export function CommandPalette() {
     const q = query.trim().toLowerCase()
     if (!q) return servers
     return servers.filter((s) => `${s.country} ${s.city}`.toLowerCase().includes(q))
-  }, [query])
+  }, [query, servers])
 
   // Reset state each time the palette opens.
   useEffect(() => {

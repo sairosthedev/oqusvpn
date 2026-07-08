@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react"
-import { servers, type Server } from "./data"
+import { servers, hydrateServer, type Server } from "./data"
 import { useUi } from "./ui-context"
 import { hasBridge, parseAccessKey } from "./oqus-bridge"
 import { api, ApiError } from "./api"
@@ -19,6 +19,7 @@ export type Theme = "light" | "dark"
 
 type VpnState = {
   status: Status
+  servers: Server[]
   server: Server
   serverIp: string | null
   elapsed: number
@@ -43,6 +44,11 @@ function systemTheme(): Theme {
 export function VpnProvider({ children }: { children: ReactNode }) {
   const { toast, loggedIn, token, setLoginOpen, setVerifyOpen, pendingConnect, setPendingConnect } = useUi()
   const [status, setStatus] = useState<Status>("disconnected")
+  // Live region list from the backend (admin-managed). Seeded with the static
+  // list so the UI has data instantly and still works offline / in a browser.
+  const [serverList, setServerList] = useState<Server[]>(servers)
+  const serverListRef = useRef<Server[]>(serverList)
+  serverListRef.current = serverList
   const [serverId, setServerId] = useState<string>(servers[0].id)
   const [serverIp, setServerIp] = useState<string | null>(null)
   const [elapsed, setElapsed] = useState(0)
@@ -63,9 +69,33 @@ export function VpnProvider({ children }: { children: ReactNode }) {
   const theme: Theme = appearance === "auto" ? systemDark : appearance
 
   const server = useMemo(
-    () => servers.find((s) => s.id === serverId) ?? servers[0],
-    [serverId],
+    () => serverList.find((s) => s.id === serverId) ?? serverList[0] ?? servers[0],
+    [serverId, serverList],
   )
+
+  // Pull the live server list (admin CRUD writes to the DB) and keep it fresh:
+  // on mount, whenever the window regains focus, and on a slow interval. This is
+  // why admin add/remove now shows up on the user side without a manual reload.
+  useEffect(() => {
+    let alive = true
+    const load = async () => {
+      try {
+        const { servers: list } = await api.listServers()
+        if (alive && list?.length) setServerList(list.map(hydrateServer))
+      } catch {
+        /* offline / browser without backend — keep the last-known list */
+      }
+    }
+    load()
+    const onFocus = () => load()
+    window.addEventListener("focus", onFocus)
+    const iv = window.setInterval(load, 30_000)
+    return () => {
+      alive = false
+      window.removeEventListener("focus", onFocus)
+      window.clearInterval(iv)
+    }
+  }, [])
 
   // Track the system preference so "Auto" appearance stays live.
   useEffect(() => {
@@ -129,7 +159,7 @@ export function VpnProvider({ children }: { children: ReactNode }) {
   // Assumes the bridge exists; status/toasts arrive via the onStatus subscription.
   const openTunnel = useCallback(
     async (id: string) => {
-      const s = servers.find((sv) => sv.id === id) ?? servers[0]
+      const s = serverListRef.current.find((sv) => sv.id === id) ?? serverListRef.current[0] ?? servers[0]
       if (!token) throw new Error("Not signed in")
       const { accessKey } = await api.getAccessKey(token, id)
       const parsed = parseAccessKey(accessKey)
@@ -217,7 +247,7 @@ export function VpnProvider({ children }: { children: ReactNode }) {
 
   const selectServer = useCallback(
     (id: string) => {
-      const target = servers.find((s) => s.id === id)
+      const target = serverListRef.current.find((s) => s.id === id)
       setServerId(id)
       if (statusRef.current !== "connected") {
         if (target) toast(`${target.city} selected`, "brand")
@@ -252,6 +282,7 @@ export function VpnProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       status,
+      servers: serverList,
       server,
       serverIp,
       elapsed,
@@ -266,7 +297,7 @@ export function VpnProvider({ children }: { children: ReactNode }) {
       selectServer,
       toggleConnection,
     }),
-    [status, server, serverIp, elapsed, switching, throughput, killSwitch, setKillSwitch, theme, appearance, toggleTheme, selectServer, toggleConnection],
+    [status, serverList, server, serverIp, elapsed, switching, throughput, killSwitch, setKillSwitch, theme, appearance, toggleTheme, selectServer, toggleConnection],
   )
 
   return <VpnContext.Provider value={value}>{children}</VpnContext.Provider>

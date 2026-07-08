@@ -1,7 +1,7 @@
 import { ChevronRight, Zap, Download, Upload, Lock, ShieldCheck } from "lucide-react"
 import * as Switch from "@radix-ui/react-switch"
 import { useVpn } from "@/lib/vpn-context"
-import { servers, qualityFor, barsFor } from "@/lib/data"
+import { qualityFor, barsFor } from "@/lib/data"
 import { formatDuration, cn } from "@/lib/utils"
 import { ConnectButton } from "./connect-button"
 import { SignalBars } from "./brand"
@@ -15,7 +15,7 @@ const qualityToneCls: Record<string, string> = {
 }
 
 export function ActionRail() {
-  const { status, server, serverIp, elapsed, switching, throughput, killSwitch, setKillSwitch, toggleConnection, selectServer } =
+  const { servers, status, server, serverIp, elapsed, switching, throughput, killSwitch, setKillSwitch, toggleConnection, selectServer } =
     useVpn()
   const connected = status === "connected"
   const quality = qualityFor(server.ping)
