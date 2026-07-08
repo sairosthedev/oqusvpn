@@ -47,6 +47,16 @@ Starts all three together: **api** (backend, in-memory Mongo — zero setup) + *
 
 Run any backend script directly with `-w server`, e.g. `npm run dev -w server` (uses your real MongoDB from `server/.env` instead of the in-memory one).
 
+### Admin console
+
+The admin console is a **separate web app** (`admin.html`) — not part of the user VPN app.
+
+```bash
+npm run admin      # starts the backend + opens http://localhost:5173/admin.html
+```
+
+Sign in with the account whose email is `OQUS_ADMIN_EMAIL` (in `server/.env`). It has server CRUD + user monitoring. To point it at your real DB, run `npm run dev -w server` alongside `npm run dev:client`, then open `/admin.html`.
+
 ## Config
 
 - Backend config lives in `server/.env` (copy from `server/.env.example`). **Not committed.**

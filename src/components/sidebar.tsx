@@ -1,10 +1,10 @@
-import { Home, Globe, BarChart3, Settings, Sun, Moon, ShieldEllipsis } from "lucide-react"
+import { Home, Globe, BarChart3, Settings, Sun, Moon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Asterisk } from "./brand"
 import { useVpn } from "@/lib/vpn-context"
 import { useUi } from "@/lib/ui-context"
 
-export type Tab = "home" | "locations" | "statistics" | "settings" | "admin"
+export type Tab = "home" | "locations" | "statistics" | "settings"
 
 const items: { id: Tab; label: string; icon: typeof Home; key: string }[] = [
   { id: "home", label: "Home", icon: Home, key: "⌘1" },
@@ -21,8 +21,7 @@ export function Sidebar({
   onChange: (t: Tab) => void
 }) {
   const { theme, toggleTheme } = useVpn()
-  const { loggedIn, user, logout, toast } = useUi()
-  const navItems = user?.role === "admin" ? [...items, { id: "admin" as Tab, label: "Admin", icon: ShieldEllipsis, key: "⌘5" }] : items
+  const { loggedIn, logout, toast } = useUi()
 
   return (
     <aside className="flex w-64 shrink-0 flex-col gap-6 border-r border-border/70 bg-surface/60 p-5">
@@ -44,7 +43,7 @@ export function Sidebar({
       </div>
 
       <nav className="flex flex-col gap-1" aria-label="Primary">
-        {navItems.map(({ id, label, icon: Icon, key }) => {
+        {items.map(({ id, label, icon: Icon, key }) => {
           const isActive = active === id
           return (
             <button

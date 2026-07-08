@@ -6,7 +6,6 @@ import { HomeTab } from "./tabs/home-tab"
 import { LocationsTab } from "./tabs/locations-tab"
 import { StatisticsTab } from "./tabs/statistics-tab"
 import { SettingsTab } from "./tabs/settings-tab"
-import { AdminTab } from "./tabs/admin-tab"
 import { LoginModal } from "./components/login-modal"
 import { VerifyModal } from "./components/verify-modal"
 import { CommandPalette } from "./components/command-palette"
@@ -21,13 +20,11 @@ const shortcuts: Record<string, Tab> = {
   "2": "locations",
   "3": "statistics",
   "4": "settings",
-  "5": "admin",
 }
 
 function Desktop() {
   const [tab, setTab] = useState<Tab>("home")
-  const { focusMode, loginOpen, setLoginOpen, loggedIn, user, setPendingConnect, verifyOpen, setVerifyOpen, setPaletteOpen } = useUi()
-  const isAdmin = user?.role === "admin"
+  const { focusMode, loginOpen, setLoginOpen, loggedIn, setPendingConnect, verifyOpen, setVerifyOpen, setPaletteOpen } = useUi()
   const { toggleConnection } = useVpn()
 
   useEffect(() => {
@@ -46,17 +43,15 @@ function Desktop() {
         setPaletteOpen(true)
         return
       }
-      // ⌘1–5 — switch panes (⌘5 admin only)
+      // ⌘1–4 — switch panes
       if (shortcuts[e.key]) {
-        const target = shortcuts[e.key]
-        if (target === "admin" && user?.role !== "admin") return
         e.preventDefault()
-        setTab(target)
+        setTab(shortcuts[e.key])
       }
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [toggleConnection, setPaletteOpen, user])
+  }, [toggleConnection, setPaletteOpen])
 
   // If the login prompt closes without a successful login, drop the pending connect intent.
   // Runs after render, so `loggedIn` reflects a just-completed login (which keeps the intent).
@@ -72,7 +67,6 @@ function Desktop() {
         {tab === "locations" && <LocationsTab />}
         {tab === "statistics" && <StatisticsTab />}
         {tab === "settings" && <SettingsTab />}
-        {tab === "admin" && isAdmin && <AdminTab />}
       </main>
 
       <LoginModal open={loginOpen} onOpenChange={setLoginOpen} />

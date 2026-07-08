@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "concurrently -k -n api,web,app -c cyan,green,magenta \"npm:dev:server\" \"vite --port 5173 --strictPort\" \"wait-on tcp:5173 && cross-env OQUS_DEV=1 electron .\"",
     "dev:web": "concurrently -k -n api,web -c cyan,green \"npm:dev:server\" \"vite\"",
+    "admin": "concurrently -k -n api,admin -c cyan,magenta \"npm:dev:server\" \"vite --port 5173 --strictPort --open /admin.html\"",
     "dev:client": "vite",
     "dev:server": "npm run dev:mem -w server",
     "build": "tsc -b && vite build",
