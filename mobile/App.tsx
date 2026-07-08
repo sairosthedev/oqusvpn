@@ -157,7 +157,7 @@ function Shell() {
     <SafeAreaView style={{ flex: 1, backgroundColor: t.background }} edges={["top", "left", "right"]}>
       <StatusBar style={t.dark ? "light" : "dark"} />
       <View style={{ flex: 1 }}>
-        {tab === "home" && <HomeScreen />}
+        {tab === "home" && <HomeScreen onChangeLocation={() => setTab("locations")} />}
         {tab === "locations" && <LocationsScreen />}
         {tab === "stats" && <StatisticsScreen />}
         {tab === "settings" && <SettingsScreen />}

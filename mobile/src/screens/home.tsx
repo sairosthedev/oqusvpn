@@ -1,5 +1,5 @@
 import { ScrollView, Text, View, Pressable } from "react-native"
-import { Download, Upload, Lock, ShieldCheck, Zap, ChevronRight } from "lucide-react-native"
+import { Download, Upload, Lock, ShieldCheck, Zap, ChevronRight, MapPin } from "lucide-react-native"
 import { useVpn } from "../context/vpn-context"
 import { useTheme } from "../context/theme-context"
 import { font } from "../context/theme-context"
@@ -8,7 +8,7 @@ import { Card, ConnectButton, Flag, IconBubble, SignalBars, Toggle } from "../co
 
 const toneColor = (t: any, tone: string) => (tone === "success" ? t.success : tone === "warning" ? t.warning : tone === "danger" ? t.danger : t.brand)
 
-export function HomeScreen() {
+export function HomeScreen({ onChangeLocation }: { onChangeLocation?: () => void }) {
   const t = useTheme()
   const { server, servers, status, elapsed, throughput, switching, killSwitch, setKillSwitch, serverIp, toggleConnection, selectServer } = useVpn()
   const connected = status === "connected"
@@ -39,21 +39,35 @@ export function HomeScreen() {
         )}
       </Card>
 
-      {/* current server */}
+      {/* current server + change location */}
       {server && (
-        <Card t={t} style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 16 }}>
-          <Flag emoji={flagEmoji(server.code)} size={32} />
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontFamily: font.semibold, fontSize: 14, color: t.foreground }}>{server.city}, {server.country}</Text>
-            <Text style={{ fontFamily: font.regular, fontSize: 12, color: t.mutedForeground }}>
-              {connected ? (
-                <>
-                  {serverIp ?? "—"} · IP masked · <Text style={{ fontFamily: font.semibold, color: toneColor(t, quality!.tone) }}>{quality!.label} · {server.ping} ms</Text>
-                </>
-              ) : "Fastest server for you"}
-            </Text>
+        <Card t={t} style={{ padding: 16 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+            <Flag emoji={flagEmoji(server.code)} size={32} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontFamily: font.semibold, fontSize: 14, color: t.foreground }}>{server.city}, {server.country}</Text>
+              <Text style={{ fontFamily: font.regular, fontSize: 12, color: t.mutedForeground }}>
+                {connected ? (
+                  <>
+                    {serverIp ?? "—"} · IP masked · <Text style={{ fontFamily: font.semibold, color: toneColor(t, quality!.tone) }}>{quality!.label} · {server.ping} ms</Text>
+                  </>
+                ) : "Fastest server for you"}
+              </Text>
+            </View>
+            <SignalBars strength={barsFor(server.ping)} t={t} />
           </View>
-          <SignalBars strength={barsFor(server.ping)} t={t} />
+
+          <Pressable
+            onPress={onChangeLocation}
+            style={({ pressed }) => ({
+              flexDirection: "row", alignItems: "center", gap: 8, marginTop: 14, paddingVertical: 10, paddingHorizontal: 12,
+              borderRadius: 999, backgroundColor: pressed ? t.brand + "22" : t.brandSoft,
+            })}
+          >
+            <MapPin size={16} color={t.brand} />
+            <Text style={{ flex: 1, fontFamily: font.semibold, fontSize: 13, color: t.brand }}>Change location</Text>
+            <ChevronRight size={16} color={t.brand} />
+          </Pressable>
         </Card>
       )}
 
