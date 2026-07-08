@@ -3,13 +3,26 @@ import { UserModel } from "../models/user"
 import { servers as staticServers } from "./servers"
 import { config } from "../config"
 import { parseAccessKey } from "../lib/ss"
+import { hashPassword } from "../auth/password"
 
-// Promote the configured admin email to the admin role on boot — so it works
-// whether the account is created now or was signed up earlier.
-export async function promoteAdmin() {
+// Ensure the configured admin account on boot:
+//  - with OQUS_ADMIN_PASSWORD: create-or-set the account with that exact password
+//    (deterministic admin login you control from .env),
+//  - without it: only promote an already-registered account to admin.
+export async function ensureAdmin() {
   if (!config.adminEmail) return
-  const r = await UserModel.updateOne({ email: config.adminEmail }, { $set: { role: "admin" } })
-  if (r.matchedCount) console.log(`[admin] ${config.adminEmail} is admin`)
+  if (config.adminPassword) {
+    const passwordHash = await hashPassword(config.adminPassword)
+    await UserModel.updateOne(
+      { email: config.adminEmail },
+      { $set: { role: "admin", passwordHash }, $setOnInsert: { email: config.adminEmail, verified: true } },
+      { upsert: true },
+    )
+    console.log(`[admin] ${config.adminEmail} ready (password from .env)`)
+  } else {
+    const r = await UserModel.updateOne({ email: config.adminEmail }, { $set: { role: "admin" } })
+    if (r.matchedCount) console.log(`[admin] ${config.adminEmail} is admin`)
+  }
 }
 
 // First-run seed: populate the servers collection from the static list, all

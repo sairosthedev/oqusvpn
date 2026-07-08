@@ -3,6 +3,7 @@
 import { MongoMemoryServer } from "mongodb-memory-server"
 import { createApp } from "./app"
 import { connectDb, disconnectDb } from "./db"
+import { config } from "./config"
 import type { AddressInfo } from "node:net"
 
 const results: { name: string; pass: boolean; detail?: string }[] = []
@@ -127,12 +128,12 @@ async function main() {
     // --- admin role + server CRUD + monitoring ---
     check("non-admin blocked from /api/admin (403)", (await fetch(`${base}/api/admin/users`, { headers: authHdr })).status === 403)
 
-    // admin account (email matches OQUS_ADMIN_EMAIL set for the smoke run)
-    const adminSignup = await fetch(`${base}/api/auth/signup`, {
-      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "admin@oqus.app", password: "supersecret1" }),
+    // admin account is bootstrapped from OQUS_ADMIN_EMAIL/PASSWORD on boot — log in.
+    const adminLogin = await fetch(`${base}/api/auth/login`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: config.adminEmail, password: config.adminPassword }),
     })
-    const adminBody = await json(adminSignup)
-    check("admin email gets admin role", adminBody.user?.role === "admin", `role=${adminBody.user?.role}`)
+    const adminBody = await json(adminLogin)
+    check("admin bootstrap: login as configured admin", adminLogin.ok && adminBody.user?.role === "admin", `role=${adminBody.user?.role}`)
     const adminHdr = { authorization: `Bearer ${adminBody.token}` }
     const adminJson = { ...adminHdr, "content-type": "application/json" }
 

@@ -15,6 +15,9 @@ export const config = {
   freeConnectCap: Number(process.env.OQUS_FREE_CAP ?? 5),
   // Signing up with this email grants the admin role (server CRUD + monitoring).
   adminEmail: (process.env.OQUS_ADMIN_EMAIL ?? "").toLowerCase(),
+  // If set, the admin account is created/kept with this exact password on boot
+  // (deterministic admin login controlled by .env).
+  adminPassword: process.env.OQUS_ADMIN_PASSWORD ?? "",
 }
 
 if (config.jwtSecret === "dev-insecure-secret-change-me") {
