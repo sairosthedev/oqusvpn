@@ -6,6 +6,7 @@ import { useTheme } from "../context/theme-context"
 import { font } from "../context/theme-context"
 import { barsFor, flagEmoji } from "../lib/theme"
 import { Card, Flag, SignalBars } from "../components/ui"
+import { LocationsMap } from "../components/locations-map"
 
 const ORDER = ["Recommended", "Africa", "Europe", "Americas", "Asia"]
 
@@ -23,7 +24,7 @@ export function LocationsScreen() {
   }, [query, servers])
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 20 }}>
+    <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 20 }}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
         <Text style={{ fontFamily: font.bold, fontSize: 24, color: t.foreground }}>
           Choose <Text style={{ color: t.brand }}>a server</Text>
@@ -42,9 +43,11 @@ export function LocationsScreen() {
       </Text>
 
       {view === "map" ? (
-        <MapView t={t} servers={servers} selectedId={server?.id} onPick={selectServer} />
+        <View style={{ flex: 1, paddingBottom: 20 }}>
+          <LocationsMap />
+        </View>
       ) : (
-        <>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
           <View style={{ position: "relative", marginBottom: 20 }}>
             <View style={{ position: "absolute", left: 14, top: 0, bottom: 0, justifyContent: "center", zIndex: 1 }}>
               <Search size={16} color={t.mutedForeground} />
@@ -101,30 +104,8 @@ export function LocationsScreen() {
               ))}
             </View>
           )}
-        </>
+        </ScrollView>
       )}
-    </ScrollView>
-  )
-}
-
-// Dot-grid stage with server pins plotted by lat/lng (equirectangular framing).
-function MapView({ t, servers, selectedId, onPick }: { t: any; servers: UiServer[]; selectedId?: string; onPick: (id: string) => void }) {
-  const FRAME = { west: -130, east: 150, north: 62, south: -38 }
-  const project = (lat: number, lng: number) => ({
-    x: ((lng - FRAME.west) / (FRAME.east - FRAME.west)) * 100,
-    y: ((FRAME.north - lat) / (FRAME.north - FRAME.south)) * 100,
-  })
-  return (
-    <View style={{ height: 440, borderRadius: 24, borderWidth: 1, borderColor: t.border, backgroundColor: t.surface, overflow: "hidden" }}>
-      {servers.map((s) => {
-        const p = project(s.lat, s.lng)
-        const selected = s.id === selectedId
-        return (
-          <Pressable key={s.id} onPress={() => onPick(s.id)} style={{ position: "absolute", left: `${p.x}%`, top: `${p.y}%`, marginLeft: -8, marginTop: -8 }}>
-            <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: selected ? t.brand : t.card, borderWidth: 2, borderColor: t.brand, alignItems: "center", justifyContent: "center", ...(selected ? {} : {}) }} />
-          </Pressable>
-        )
-      })}
     </View>
   )
 }
