@@ -1,3 +1,5 @@
+import fs from "node:fs"
+import path from "node:path"
 import { config } from "../config"
 import type { ServerInfo } from "../data/servers"
 
@@ -8,9 +10,9 @@ export type IssuedKey = {
 }
 
 /**
- * Issues Shadowsocks access to a user for a given server. This is the seam
- * between the control plane (accounts) and the data plane (VPN servers).
- * Swap the implementation without touching the routes.
+ * Issues Shadowsocks access to a user for a given server — the seam between the
+ * control plane (accounts) and the data plane (VPN servers). Swap the
+ * implementation without touching the routes.
  */
 export interface KeyProvider {
   issue(userId: string, server: ServerInfo): Promise<IssuedKey>
@@ -18,28 +20,43 @@ export interface KeyProvider {
 }
 
 /**
- * MVP provider: hands every user the same shared test key (your throwaway
- * ss-server). No per-user isolation — fine for wiring the app end-to-end.
+ * Per-server keys from `server/keys.json` (gitignored), with the single
+ * `OQUS_ACCESS_KEY` as the fallback for any server not listed. This is how you
+ * add servers: deploy a VM, get its ss:// key, add "<serverId>": "ss://…" to
+ * keys.json, restart. See keys.example.json.
+ *
+ * NEXT (real multi-user): a ShadowboxKeyProvider that calls each server's
+ * Outline management API to mint/revoke a per-user key — same interface.
  */
-export class StaticKeyProvider implements KeyProvider {
+export class MappedKeyProvider implements KeyProvider {
+  private map: Record<string, string> = {}
+
+  constructor() {
+    const file = path.resolve(__dirname, "..", "..", "keys.json")
+    try {
+      if (fs.existsSync(file)) {
+        const parsed = JSON.parse(fs.readFileSync(file, "utf8")) as Record<string, string>
+        // ignore comment/meta keys (leading underscore)
+        for (const [k, v] of Object.entries(parsed)) {
+          if (!k.startsWith("_") && typeof v === "string" && v.startsWith("ss://")) this.map[k] = v
+        }
+        console.log(`[keys] loaded ${Object.keys(this.map).length} per-server key(s) from keys.json`)
+      } else {
+        console.log("[keys] no keys.json — using OQUS_ACCESS_KEY for every server")
+      }
+    } catch (err) {
+      console.warn("[keys] failed to read keys.json, falling back to OQUS_ACCESS_KEY:", err)
+    }
+  }
+
   async issue(_userId: string, server: ServerInfo): Promise<IssuedKey> {
-    return { accessKey: config.staticAccessKey, serverId: server.id }
+    return { accessKey: this.map[server.id] ?? config.staticAccessKey, serverId: server.id }
+  }
+
+  /** Which servers have a real, dedicated key (vs. the shared fallback). */
+  provisioned(): string[] {
+    return Object.keys(this.map)
   }
 }
 
-/*
- * NEXT: real per-user provisioning. Two drop-in options —
- *
- * class ShadowboxKeyProvider implements KeyProvider {
- *   // POST {apiUrl}/access-keys to the Outline Server management API,
- *   // return the created key's accessUrl. Store keyId on the user/server
- *   // so revoke() can DELETE it. Needs the server's apiUrl + cert sha256.
- * }
- *
- * class SsServerKeyProvider implements KeyProvider {
- *   // Add the user's key to the outline-ss-server YAML config and SIGHUP
- *   // the process (or via its config service), then build the ss:// URL.
- * }
- */
-
-export const keyProvider: KeyProvider = new StaticKeyProvider()
+export const keyProvider = new MappedKeyProvider()
