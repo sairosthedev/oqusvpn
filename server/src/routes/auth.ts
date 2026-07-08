@@ -4,6 +4,7 @@ import { UserModel } from "../models/user"
 import { hashPassword, verifyPassword } from "../auth/password"
 import { signToken } from "../auth/jwt"
 import { requireAuth, type AuthedRequest } from "../middleware/auth"
+import { config } from "../config"
 
 const credentials = z.object({
   email: z.string().email(),
@@ -24,6 +25,7 @@ const verifySchema = z.object({
 function publicUser(u: {
   _id: unknown
   email: string
+  role?: string
   verified?: boolean
   fullName?: string | null
   phone?: string | null
@@ -32,6 +34,7 @@ function publicUser(u: {
   return {
     id: String(u._id),
     email: u.email,
+    role: u.role ?? "user",
     verified: !!u.verified,
     fullName: u.fullName ?? null,
     phone: u.phone ?? null,
@@ -55,6 +58,7 @@ authRouter.post("/signup", async (req, res) => {
   const user = await UserModel.create({
     email,
     passwordHash: await hashPassword(parsed.data.password),
+    role: config.adminEmail && email === config.adminEmail ? "admin" : "user",
   })
   return res.status(201).json({ token: signToken({ sub: String(user._id), email }), user: publicUser(user) })
 })

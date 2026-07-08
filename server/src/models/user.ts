@@ -11,6 +11,7 @@ const userSchema = new Schema(
       index: true,
     },
     passwordHash: { type: String, required: true },
+    role: { type: String, enum: ["user", "admin"], default: "user" },
     // Signup stays minimal (email + password). Name/phone are collected later,
     // only when an unverified user hits the free usage cap.
     verified: { type: Boolean, default: false },

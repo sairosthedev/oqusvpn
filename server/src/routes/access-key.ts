@@ -1,19 +1,20 @@
 import { Router } from "express"
 import { requireAuth, type AuthedRequest } from "../middleware/auth"
-import { keyProvider } from "../keys/provider"
-import { servers, findServer } from "../data/servers"
 import { UserModel } from "../models/user"
+import { ServerModel } from "../models/server"
+import { buildAccessKey } from "../lib/ss"
 import { config } from "../config"
 
 export const accessKeyRouter = Router()
 
-// GET /api/access-key?serverId=xx — issue the caller a Shadowsocks key.
-// Unverified accounts get `freeConnectCap` connects, then must verify (name +
-// phone) via POST /api/auth/verify before they can connect again.
+// GET /api/access-key?serverId=xx — issue the caller a Shadowsocks key, built
+// from the DB server record. Unverified accounts are capped (see verify flow).
 accessKeyRouter.get("/", requireAuth, async (req: AuthedRequest, res) => {
   const requested = typeof req.query.serverId === "string" ? req.query.serverId : undefined
-  const server = requested ? findServer(requested) : (servers.find((s) => s.fastest) ?? servers[0])
-  if (!server) return res.status(404).json({ error: "Unknown server" })
+  const server = requested
+    ? await ServerModel.findOne({ serverId: requested, enabled: true })
+    : (await ServerModel.findOne({ fastest: true, enabled: true })) ?? (await ServerModel.findOne({ enabled: true }))
+  if (!server) return res.status(404).json({ error: "Unknown or disabled server" })
 
   const user = await UserModel.findById(req.userId)
   if (!user) return res.status(404).json({ error: "User not found" })
@@ -28,10 +29,15 @@ accessKeyRouter.get("/", requireAuth, async (req: AuthedRequest, res) => {
   }
 
   await UserModel.updateOne({ _id: user._id }, { $inc: { usageCount: 1 } })
-  const issued = await keyProvider.issue(String(user._id), server)
+  const accessKey = buildAccessKey({
+    host: server.host,
+    port: server.port,
+    method: server.method,
+    secret: server.secret,
+  })
   res.json({
-    accessKey: issued.accessKey,
-    server: { id: server.id, city: server.city, country: server.country, code: server.code },
+    accessKey,
+    server: { id: server.serverId, city: server.city, country: server.country, code: server.code },
     usage: { count: (user.usageCount ?? 0) + 1, cap, verified: !!user.verified },
   })
 })

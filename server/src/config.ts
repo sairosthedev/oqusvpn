@@ -13,6 +13,8 @@ export const config = {
   corsOrigin: process.env.CORS_ORIGIN ?? "*",
   // Connections an unverified account gets before it must verify (name + phone).
   freeConnectCap: Number(process.env.OQUS_FREE_CAP ?? 5),
+  // Signing up with this email grants the admin role (server CRUD + monitoring).
+  adminEmail: (process.env.OQUS_ADMIN_EMAIL ?? "").toLowerCase(),
 }
 
 if (config.jwtSecret === "dev-insecure-secret-change-me") {

@@ -111,6 +111,51 @@ async function main() {
       afterKey.ok && String(afterBody.accessKey).startsWith("ss://") && afterBody.server?.city === "Tokyo",
       `${afterKey.status} ${afterBody.server?.city}`,
     )
+
+    // --- usage metering ---
+    const rep = await fetch(`${base}/api/usage`, {
+      method: "POST", headers: jsonHdr, body: JSON.stringify({ serverId: "jp-tok", bytesDown: 5_000_000, bytesUp: 1_000_000, durationSec: 120 }),
+    })
+    check("POST /api/usage records a session", rep.status === 201, `status ${rep.status}`)
+    const stats = await json(await fetch(`${base}/api/me/stats`, { headers: authHdr }))
+    check(
+      "GET /api/me/stats aggregates real usage",
+      stats.stats?.bytesDown === 5_000_000 && stats.stats?.sessions === 1 && stats.stats?.durationSec === 120,
+      `down=${stats.stats?.bytesDown} sessions=${stats.stats?.sessions}`,
+    )
+
+    // --- admin role + server CRUD + monitoring ---
+    check("non-admin blocked from /api/admin (403)", (await fetch(`${base}/api/admin/users`, { headers: authHdr })).status === 403)
+
+    // admin account (email matches OQUS_ADMIN_EMAIL set for the smoke run)
+    const adminSignup = await fetch(`${base}/api/auth/signup`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "admin@oqus.app", password: "supersecret1" }),
+    })
+    const adminBody = await json(adminSignup)
+    check("admin email gets admin role", adminBody.user?.role === "admin", `role=${adminBody.user?.role}`)
+    const adminHdr = { authorization: `Bearer ${adminBody.token}` }
+    const adminJson = { ...adminHdr, "content-type": "application/json" }
+
+    const listed = await json(await fetch(`${base}/api/admin/servers`, { headers: adminHdr }))
+    check("admin lists seeded servers", Array.isArray(listed.servers) && listed.servers.length >= 10, `${listed.servers?.length} servers`)
+
+    const created = await fetch(`${base}/api/admin/servers`, {
+      method: "POST", headers: adminJson,
+      body: JSON.stringify({ serverId: "ke-nbo2", country: "Kenya", city: "Nairobi 2", accessKey: "ss://chacha20-ietf-poly1305:testpw@9.9.9.9:8388" }),
+    })
+    const createdBody = await json(created)
+    check("admin creates a server (from ss:// key)", created.status === 201 && createdBody.server?.host === "9.9.9.9", `${created.status} host=${createdBody.server?.host}`)
+
+    const upd = await fetch(`${base}/api/admin/servers/ke-nbo2`, { method: "PUT", headers: adminJson, body: JSON.stringify({ enabled: false }) })
+    const updBody = await json(upd)
+    check("admin updates a server (disable)", upd.ok && updBody.server?.enabled === false)
+
+    const usersList = await json(await fetch(`${base}/api/admin/users`, { headers: adminHdr }))
+    const adaRow = usersList.users?.find((u: any) => u.email === "ada@oqus.app")
+    check("admin monitors users with usage", !!adaRow && adaRow.usage?.bytesDown === 5_000_000, `ada down=${adaRow?.usage?.bytesDown}`)
+
+    const del = await fetch(`${base}/api/admin/servers/ke-nbo2`, { method: "DELETE", headers: adminHdr })
+    check("admin deletes a server", del.ok)
   } catch (e) {
     check("exception", false, (e as Error).message)
   } finally {
