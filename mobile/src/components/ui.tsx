@@ -2,9 +2,12 @@ import { useEffect, useRef } from "react"
 import {
   Animated,
   Easing,
+  LayoutAnimation,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
+  UIManager,
   View,
   type StyleProp,
   type TextStyle,
@@ -14,6 +17,10 @@ import Svg, { Rect } from "react-native-svg"
 import { Power } from "lucide-react-native"
 import { RADIUS_APP, type Theme, barsFor } from "../lib/theme"
 import { font, useTheme } from "../context/theme-context"
+
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true)
+}
 export { useTheme }
 
 /** Six-point asterisk mark — three rounded bars at 0/60/120°, exactly like brand.tsx. */
@@ -169,6 +176,45 @@ export function txt(t: Theme, kind: "h1" | "h2" | "body" | "muted" | "cap" = "bo
   }
 }
 
+// Floating pill tab bar — a rounded card hovering above the screen edge. The
+// active tab expands into a solid-brand pill with its label; others are icons.
+export function TabBar<K extends string>({
+  tabs,
+  active,
+  onChange,
+  t,
+}: {
+  tabs: { key: K; label: string; icon: any }[]
+  active: K
+  onChange: (k: K) => void
+  t: Theme
+}) {
+  return (
+    <View style={[styles.tabbar, { backgroundColor: t.card, borderColor: t.border }]}>
+      {tabs.map(({ key, label, icon: Icon }) => {
+        const on = key === active
+        return (
+          <Pressable
+            key={key}
+            onPress={() => {
+              LayoutAnimation.configureNext(LayoutAnimation.create(180, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity))
+              onChange(key)
+            }}
+            style={{
+              flexDirection: "row", alignItems: "center", gap: 7,
+              paddingVertical: 11, paddingHorizontal: on ? 16 : 13,
+              borderRadius: 999, backgroundColor: on ? t.brand : "transparent",
+            }}
+          >
+            <Icon size={21} color={on ? "#fff" : t.mutedForeground} strokeWidth={on ? 2.4 : 2} />
+            {on && <Text style={{ color: "#fff", fontFamily: font.semibold, fontSize: 13 }}>{label}</Text>}
+          </Pressable>
+        )
+      })}
+    </View>
+  )
+}
+
 export function shadow(elevation: number): ViewStyle {
   return {
     shadowColor: "#1e265a",
@@ -181,4 +227,18 @@ export function shadow(elevation: number): ViewStyle {
 
 const styles = StyleSheet.create({
   card: { borderRadius: 16, ...shadow(3) },
+  tabbar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-around",
+    alignSelf: "center",
+    marginHorizontal: 16,
+    marginBottom: 6,
+    marginTop: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+    borderRadius: 30,
+    borderWidth: 1,
+    ...shadow(10),
+  },
 })

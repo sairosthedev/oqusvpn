@@ -18,7 +18,7 @@ import { nativeVpn } from "./src/lib/vpn"
 import { ThemeProvider, useTheme, font } from "./src/context/theme-context"
 import { AuthProvider } from "./src/context/auth-context"
 import { VpnProvider } from "./src/context/vpn-context"
-import { Asterisk, PrimaryButton } from "./src/components/ui"
+import { Asterisk, PrimaryButton, TabBar } from "./src/components/ui"
 import { Splash } from "./src/screens/splash"
 import { Onboarding } from "./src/screens/onboarding"
 import { HomeScreen } from "./src/screens/home"
@@ -162,18 +162,8 @@ function Shell() {
         {tab === "stats" && <StatisticsScreen />}
         {tab === "settings" && <SettingsScreen />}
       </View>
-      <SafeAreaView edges={["bottom"]} style={{ backgroundColor: t.card }}>
-        <View style={{ flexDirection: "row", borderTopWidth: 1, borderTopColor: t.border, paddingTop: 8, paddingBottom: 4 }}>
-          {tabs.map(({ key, label, icon: Icon }) => {
-            const on = key === tab
-            return (
-              <Pressable key={key} onPress={() => setTab(key)} style={{ flex: 1, alignItems: "center", gap: 3, paddingVertical: 4 }}>
-                <Icon size={22} color={on ? t.brand : t.mutedForeground} strokeWidth={on ? 2.4 : 2} />
-                <Text style={{ fontFamily: on ? font.semibold : font.medium, fontSize: 11, color: on ? t.brand : t.mutedForeground }}>{label}</Text>
-              </Pressable>
-            )
-          })}
-        </View>
+      <SafeAreaView edges={["bottom"]}>
+        <TabBar tabs={tabs} active={tab} onChange={setTab} t={t} />
       </SafeAreaView>
     </SafeAreaView>
   )
