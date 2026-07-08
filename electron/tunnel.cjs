@@ -175,8 +175,18 @@ class TunnelManager extends EventEmitter {
 
     // 7) Kill switch — block everything that isn't the tunnel, the server, or loopback.
     //    Armed unless the user turned it off (config.killSwitch === false) or OQUS_KILLSWITCH=0.
-    this.killSwitchOn = KILLSWITCH && config.killSwitch !== false
-    if (this.killSwitchOn) await this._enableKillSwitch()
+    //    Fail-safe: if arming errors, roll the firewall back and stay connected
+    //    WITHOUT the kill switch — a failed arm must never leave the user blocked.
+    this.killSwitchOn = false
+    if (KILLSWITCH && config.killSwitch !== false) {
+      try {
+        await this._enableKillSwitch()
+        this.killSwitchOn = true
+      } catch (err) {
+        await this._disableKillSwitch() // undo any partial block
+        this.lastLog = `kill switch disabled (arm failed: ${(err && err.message) || err})`
+      }
+    }
 
     this.serverId = config.id || ""
     this.connectedAt = Date.now()
@@ -239,11 +249,14 @@ class TunnelManager extends EventEmitter {
   // the Shadowsocks link to the server, loopback, and DHCP. If the tunnel drops,
   // fallback traffic leaves the physical NIC (source != tun IP) and is dropped.
   async _enableKillSwitch() {
-    await run("netsh", ["advfirewall", "set", "allprofiles", "firewallpolicy", "blockinbound,blockoutbound"])
+    // Stage the allow rules FIRST, flip the global block LAST. That way if any
+    // step fails, we throw before blocking anything — a failed arm never leaves
+    // the machine cut off (the block is only applied once all exceptions exist).
     await run("netsh", ["advfirewall", "firewall", "add", "rule", "name=OqusKS-Tun", "dir=out", "action=allow", `localip=${TUN_ADDR}`])
     await run("netsh", ["advfirewall", "firewall", "add", "rule", "name=OqusKS-Server", "dir=out", "action=allow", `remoteip=${this.serverIp}`])
     await run("netsh", ["advfirewall", "firewall", "add", "rule", "name=OqusKS-Loopback", "dir=out", "action=allow", "localip=127.0.0.1", "remoteip=127.0.0.1"])
     await run("netsh", ["advfirewall", "firewall", "add", "rule", "name=OqusKS-DHCP", "dir=out", "action=allow", "protocol=UDP", "localport=68", "remoteport=67"])
+    await run("netsh", ["advfirewall", "set", "allprofiles", "firewallpolicy", "blockinbound,blockoutbound"])
   }
 
   async _disableKillSwitch() {
