@@ -2,7 +2,7 @@
 // Owns the app window and brokers connect/disconnect between the React UI and
 // the native tunnel (TunnelManager). All privileged work happens here in the
 // main process; the renderer only sends intents and receives status.
-const { app, BrowserWindow, shell } = require("electron")
+const { app, BrowserWindow, shell, ipcMain } = require("electron")
 const path = require("node:path")
 const { registerTunnelIpc } = require("./tunnel-ipc.cjs")
 
@@ -12,6 +12,13 @@ const DEV_URL = "http://localhost:5173"
 /** @type {BrowserWindow | null} */
 let win = null
 const tunnel = registerTunnelIpc(() => win)
+
+// Launch-at-startup (real: writes the OS login item, no admin needed).
+ipcMain.handle("app:getAutoLaunch", () => app.getLoginItemSettings().openAtLogin)
+ipcMain.handle("app:setAutoLaunch", (_evt, on) => {
+  app.setLoginItemSettings({ openAtLogin: !!on })
+  return app.getLoginItemSettings().openAtLogin
+})
 
 function createWindow() {
   win = new BrowserWindow({

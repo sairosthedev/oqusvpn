@@ -1,6 +1,5 @@
 import { ChevronRight, Zap, Download, Upload, Lock, ShieldCheck } from "lucide-react"
 import * as Switch from "@radix-ui/react-switch"
-import { useEffect, useState } from "react"
 import { useVpn } from "@/lib/vpn-context"
 import { servers, qualityFor, barsFor } from "@/lib/data"
 import { formatDuration, cn } from "@/lib/utils"
@@ -15,26 +14,11 @@ const qualityToneCls: Record<string, string> = {
   danger: "text-danger",
 }
 
-const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n))
-
 export function ActionRail() {
-  const { status, server, elapsed, switching, toggleConnection, selectServer } = useVpn()
-  const [killSwitch, setKillSwitch] = useState(true)
-  const [speed, setSpeed] = useState({ down: 19.5, up: 12.1 })
+  const { status, server, serverIp, elapsed, switching, throughput, killSwitch, setKillSwitch, toggleConnection, selectServer } =
+    useVpn()
   const connected = status === "connected"
   const quality = qualityFor(server.ping)
-
-  // Live throughput: a gentle random walk while connected, paused otherwise.
-  useEffect(() => {
-    if (status !== "connected") return
-    const id = window.setInterval(() => {
-      setSpeed((s) => ({
-        down: clamp(s.down + (Math.random() - 0.48) * 7, 6, 48),
-        up: clamp(s.up + (Math.random() - 0.48) * 4.5, 3, 24),
-      }))
-    }, 1100)
-    return () => window.clearInterval(id)
-  }, [status])
 
   const quick = servers.filter((s) => ["ng-lag", "us-ny"].includes(s.id))
 
@@ -82,7 +66,7 @@ export function ActionRail() {
           <span className="block text-xs text-muted-foreground">
             {connected ? (
               <>
-                21.170.236.49 · IP masked ·{" "}
+                {serverIp ?? "—"} · IP masked ·{" "}
                 <span className={cn("font-semibold", qualityToneCls[quality.tone])}>
                   {quality.label} · {server.ping} ms
                 </span>
@@ -98,8 +82,8 @@ export function ActionRail() {
       {connected ? (
         <>
           <div className="grid grid-cols-2 gap-3">
-            <Stat icon={Download} label="Download" value={speed.down.toFixed(1)} unit="Mb/s" />
-            <Stat icon={Upload} label="Upload" value={speed.up.toFixed(1)} unit="Mb/s" />
+            <Stat icon={Download} label="Download" value={throughput.down.toFixed(1)} unit="Mb/s" />
+            <Stat icon={Upload} label="Upload" value={throughput.up.toFixed(1)} unit="Mb/s" />
           </div>
 
           {/* reassurance card — success-tinted glass */}

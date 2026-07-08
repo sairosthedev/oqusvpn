@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   ChevronRight,
   Wifi,
@@ -30,18 +30,29 @@ const categories = [
 const languages = ["English", "Hausa", "Yoruba", "Swahili", "Hindi", "Urdu"]
 
 export function SettingsTab() {
-  const { appearance, setAppearance } = useVpn()
+  const { appearance, setAppearance, killSwitch, setKillSwitch } = useVpn()
   const { toast, loggedIn, user, logout, setVerifyOpen } = useUi()
   const [active, setActive] = useState<(typeof categories)[number]["id"]>("connection")
 
   const [autoConnect, setAutoConnect] = useState(true)
-  const [launchStartup, setLaunchStartup] = useState(true)
+  const [launchStartup, setLaunchStartup] = useState(false)
   const [notifications, setNotifications] = useState(true)
   const [splitTunnel, setSplitTunnel] = useState(false)
-  const [killSwitch, setKillSwitch] = useState(true)
   const [privateDns, setPrivateDns] = useState(true)
   const [protocol, setProtocol] = useState("auto")
   const [language, setLanguage] = useState("English")
+
+  // Reflect the real OS login-item state (desktop app only).
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.oqus) {
+      window.oqus.getAutoLaunch().then(setLaunchStartup).catch(() => {})
+    }
+  }, [])
+
+  const toggleLaunchStartup = (v: boolean) => {
+    setLaunchStartup(v)
+    window.oqus?.setAutoLaunch(v).then(setLaunchStartup).catch(() => {})
+  }
 
   const displayName = user?.fullName || (user?.email ? user.email.split("@")[0] : "Guest")
   const initials =
@@ -178,7 +189,7 @@ export function SettingsTab() {
                   icon={Wifi}
                   title="Launch at startup"
                   desc="Open OqusVPN when your computer starts"
-                  control={<Toggle checked={launchStartup} onChange={setLaunchStartup} />}
+                  control={<Toggle checked={launchStartup} onChange={toggleLaunchStartup} />}
                 />
               </div>
             )}

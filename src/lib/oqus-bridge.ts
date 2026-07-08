@@ -11,13 +11,20 @@ export type TunnelConfig = {
   method: string
   id?: string
   city?: string
+  killSwitch?: boolean
 }
+
+export type Throughput = { down: number; up: number }
 
 export type OqusBridge = {
   connect: (config: TunnelConfig) => Promise<{ ok: boolean; error?: string }>
   disconnect: () => Promise<{ ok: boolean; error?: string }>
   getStatus: () => Promise<{ status: TunnelStatus; detail?: string }>
   onStatus: (cb: (p: { status: TunnelStatus; detail?: string }) => void) => () => void
+  onThroughput: (cb: (p: Throughput) => void) => () => void
+  setKillSwitch: (on: boolean) => Promise<{ ok: boolean; error?: string }>
+  getAutoLaunch: () => Promise<boolean>
+  setAutoLaunch: (on: boolean) => Promise<boolean>
 }
 
 declare global {

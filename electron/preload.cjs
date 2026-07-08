@@ -27,4 +27,22 @@ contextBridge.exposeInMainWorld("oqus", {
     ipcRenderer.on("vpn:status", listener)
     return () => ipcRenderer.removeListener("vpn:status", listener)
   },
+
+  /**
+   * Subscribe to real throughput pushes (Mb/s) while connected.
+   * @param {(payload: { down: number, up: number }) => void} cb
+   * @returns {() => void} unsubscribe
+   */
+  onThroughput: (cb) => {
+    const listener = (_evt, payload) => cb(payload)
+    ipcRenderer.on("vpn:throughput", listener)
+    return () => ipcRenderer.removeListener("vpn:throughput", listener)
+  },
+
+  /** Arm/disarm the kill switch live while connected. */
+  setKillSwitch: (on) => ipcRenderer.invoke("vpn:setKillSwitch", on),
+
+  /** Launch-at-startup (OS login item). */
+  getAutoLaunch: () => ipcRenderer.invoke("app:getAutoLaunch"),
+  setAutoLaunch: (on) => ipcRenderer.invoke("app:setAutoLaunch", on),
 })

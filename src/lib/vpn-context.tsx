@@ -20,8 +20,12 @@ export type Theme = "light" | "dark"
 type VpnState = {
   status: Status
   server: Server
+  serverIp: string | null
   elapsed: number
   switching: boolean
+  throughput: { down: number; up: number }
+  killSwitch: boolean
+  setKillSwitch: (on: boolean) => void
   theme: Theme
   appearance: Appearance
   toggleTheme: () => void
@@ -40,14 +44,19 @@ export function VpnProvider({ children }: { children: ReactNode }) {
   const { toast, loggedIn, token, setLoginOpen, setVerifyOpen, pendingConnect, setPendingConnect } = useUi()
   const [status, setStatus] = useState<Status>("disconnected")
   const [serverId, setServerId] = useState<string>(servers[0].id)
+  const [serverIp, setServerIp] = useState<string | null>(null)
   const [elapsed, setElapsed] = useState(0)
   const [switching, setSwitching] = useState(false)
+  const [throughput, setThroughput] = useState({ down: 0, up: 0 })
+  const [killSwitch, setKillSwitchState] = useState(true)
   const [appearance, setAppearance] = useState<Appearance>("light")
   const [systemDark, setSystemDark] = useState<Theme>(() =>
     typeof window !== "undefined" ? systemTheme() : "light",
   )
   const timerRef = useRef<number | null>(null)
   const switchingRef = useRef(false) // true while re-tunnelling to another server
+  const killSwitchRef = useRef(killSwitch)
+  killSwitchRef.current = killSwitch
   const statusRef = useRef<Status>(status)
   statusRef.current = status
 
@@ -91,12 +100,22 @@ export function VpnProvider({ children }: { children: ReactNode }) {
       if (s === "connected") {
         setElapsed(0)
         toast(detail || "Connected", "success")
-      } else if (s === "disconnected" && !switchingRef.current) {
-        // stay quiet during an intentional server switch
-        toast(detail?.startsWith("Failed") ? detail : "Disconnected · you're exposed", "danger")
+      } else if (s === "disconnected") {
+        setThroughput({ down: 0, up: 0 })
+        if (!switchingRef.current) {
+          // stay quiet during an intentional server switch
+          setServerIp(null)
+          toast(detail?.startsWith("Failed") ? detail : "Disconnected · you're exposed", "danger")
+        }
       }
     })
   }, [toast])
+
+  // Real throughput pushed from the tunnel while connected.
+  useEffect(() => {
+    if (!hasBridge() || !window.oqus) return
+    return window.oqus.onThroughput((p) => setThroughput(p))
+  }, [])
 
   // Fetch this user's access key for a server and hand it to the native tunnel.
   // Assumes the bridge exists; status/toasts arrive via the onStatus subscription.
@@ -105,12 +124,22 @@ export function VpnProvider({ children }: { children: ReactNode }) {
       const s = servers.find((sv) => sv.id === id) ?? servers[0]
       if (!token) throw new Error("Not signed in")
       const { accessKey } = await api.getAccessKey(token, id)
-      const cfg = { ...parseAccessKey(accessKey), id, city: s.city }
+      const parsed = parseAccessKey(accessKey)
+      const cfg = { ...parsed, id, city: s.city, killSwitch: killSwitchRef.current }
+      setServerIp(parsed.host)
       const res = await window.oqus!.connect(cfg)
       if (!res.ok) throw new Error(res.error || "Connection failed")
     },
     [token],
   )
+
+  // Kill-switch preference. Applied live if we're already connected.
+  const setKillSwitch = useCallback((on: boolean) => {
+    setKillSwitchState(on)
+    if (statusRef.current === "connected" && hasBridge() && window.oqus) {
+      window.oqus.setKillSwitch(on)
+    }
+  }, [])
 
   const reportConnectError = useCallback(
     (err: unknown) => {
@@ -216,8 +245,12 @@ export function VpnProvider({ children }: { children: ReactNode }) {
     () => ({
       status,
       server,
+      serverIp,
       elapsed,
       switching,
+      throughput,
+      killSwitch,
+      setKillSwitch,
       theme,
       appearance,
       toggleTheme,
@@ -225,7 +258,7 @@ export function VpnProvider({ children }: { children: ReactNode }) {
       selectServer,
       toggleConnection,
     }),
-    [status, server, elapsed, switching, theme, appearance, toggleTheme, selectServer, toggleConnection],
+    [status, server, serverIp, elapsed, switching, throughput, killSwitch, setKillSwitch, theme, appearance, toggleTheme, selectServer, toggleConnection],
   )
 
   return <VpnContext.Provider value={value}>{children}</VpnContext.Provider>

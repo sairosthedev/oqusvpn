@@ -64,6 +64,8 @@ class TunnelManager extends EventEmitter {
     this.serverIp = null
     this.gateway = null
     this.lastLog = ""
+    this.killSwitchOn = false
+    this._statsTimer = null
   }
 
   getStatus() {
@@ -156,9 +158,63 @@ class TunnelManager extends EventEmitter {
     await runQuiet("netsh", ["interface", "ip", "set", "dnsservers", `name=${TUN_NAME}`, "static", TUN_DNS, "primary"])
 
     // 7) Kill switch — block everything that isn't the tunnel, the server, or loopback.
-    if (KILLSWITCH) await this._enableKillSwitch()
+    //    Armed unless the user turned it off (config.killSwitch === false) or OQUS_KILLSWITCH=0.
+    this.killSwitchOn = KILLSWITCH && config.killSwitch !== false
+    if (this.killSwitchOn) await this._enableKillSwitch()
 
+    this._startThroughput()
     this._set("connected", `All traffic via ${config.city || host}`)
+  }
+
+  /** Live kill-switch toggle while connected. */
+  async setKillSwitch(on) {
+    if (this.status !== "connected") return
+    if (on && !this.killSwitchOn) {
+      await this._enableKillSwitch()
+      this.killSwitchOn = true
+    } else if (!on && this.killSwitchOn) {
+      await this._disableKillSwitch()
+      this.killSwitchOn = false
+    }
+  }
+
+  // Poll the tun adapter's byte counters and emit real throughput (Mb/s).
+  _startThroughput() {
+    let lastRx = 0
+    let lastTx = 0
+    let lastT = Date.now()
+    let first = true
+    this._statsTimer = setInterval(async () => {
+      try {
+        const out = await run("powershell", [
+          "-NoProfile", "-Command",
+          `$s = Get-NetAdapterStatistics -Name '${TUN_NAME}' -ErrorAction SilentlyContinue; "$($s.ReceivedBytes)|$($s.SentBytes)"`,
+        ])
+        const [rxStr, txStr] = out.trim().split("|")
+        const rx = Number(rxStr)
+        const tx = Number(txStr)
+        const now = Date.now()
+        const dt = (now - lastT) / 1000
+        if (!first && dt > 0 && Number.isFinite(rx) && Number.isFinite(tx)) {
+          const down = Math.max(0, ((rx - lastRx) * 8) / 1e6 / dt) // Mb/s (download)
+          const up = Math.max(0, ((tx - lastTx) * 8) / 1e6 / dt) // Mb/s (upload)
+          this.emit("throughput", { down, up })
+        }
+        lastRx = rx
+        lastTx = tx
+        lastT = now
+        first = false
+      } catch {
+        /* ignore a missed sample */
+      }
+    }, 1500)
+  }
+
+  _stopThroughput() {
+    if (this._statsTimer) {
+      clearInterval(this._statsTimer)
+      this._statsTimer = null
+    }
   }
 
   // Fail-closed firewall: default-block outbound, allow only tun-sourced traffic,
@@ -189,7 +245,9 @@ class TunnelManager extends EventEmitter {
   }
 
   async _teardownReal() {
-    if (KILLSWITCH) await this._disableKillSwitch() // restore connectivity first
+    this._stopThroughput()
+    await this._disableKillSwitch() // restore connectivity first (safe/no-op if not set)
+    this.killSwitchOn = false
     if (this.tunIdx) {
       await runQuiet("netsh", ["interface", "ipv4", "delete", "route", "prefix=0.0.0.0/1", `interface=${this.tunIdx}`])
       await runQuiet("netsh", ["interface", "ipv4", "delete", "route", "prefix=128.0.0.0/1", `interface=${this.tunIdx}`])
