@@ -65,6 +65,8 @@ class TunnelManager extends EventEmitter {
     this.gateway = null
     this.lastLog = ""
     this.killSwitchOn = false
+    this.connectedAt = null
+    this.serverId = ""
     this._statsTimer = null
   }
 
@@ -162,6 +164,8 @@ class TunnelManager extends EventEmitter {
     this.killSwitchOn = KILLSWITCH && config.killSwitch !== false
     if (this.killSwitchOn) await this._enableKillSwitch()
 
+    this.serverId = config.id || ""
+    this.connectedAt = Date.now()
     this._startThroughput()
     this._set("connected", `All traffic via ${config.city || host}`)
   }
@@ -246,6 +250,28 @@ class TunnelManager extends EventEmitter {
 
   async _teardownReal() {
     this._stopThroughput()
+    // Capture the session's usage from the (per-session) Wintun adapter counters
+    // before we tear it down. tun2socks creates a fresh adapter each connect, so
+    // its totals == this session's totals.
+    let session = null
+    if (this.connectedAt && this.tunIdx) {
+      try {
+        const out = await run("powershell", [
+          "-NoProfile", "-Command",
+          `$s = Get-NetAdapterStatistics -Name '${TUN_NAME}' -ErrorAction SilentlyContinue; "$($s.ReceivedBytes)|$($s.SentBytes)"`,
+        ])
+        const [rx, tx] = out.trim().split("|").map(Number)
+        session = {
+          serverId: this.serverId,
+          bytesDown: Number.isFinite(rx) ? rx : 0,
+          bytesUp: Number.isFinite(tx) ? tx : 0,
+          durationSec: Math.round((Date.now() - this.connectedAt) / 1000),
+        }
+      } catch {
+        /* skip usage report */
+      }
+    }
+    this.connectedAt = null
     await this._disableKillSwitch() // restore connectivity first (safe/no-op if not set)
     this.killSwitchOn = false
     if (this.tunIdx) {
@@ -267,6 +293,7 @@ class TunnelManager extends EventEmitter {
     this.tunIdx = null
     this.serverIp = null
     this.gateway = null
+    if (session) this.emit("session", session)
   }
 
   async _resolve(host) {

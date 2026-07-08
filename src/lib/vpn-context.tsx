@@ -117,6 +117,14 @@ export function VpnProvider({ children }: { children: ReactNode }) {
     return window.oqus.onThroughput((p) => setThroughput(p))
   }, [])
 
+  // Report each finished session's usage to the backend (powers stats + monitoring).
+  useEffect(() => {
+    if (!hasBridge() || !window.oqus) return
+    return window.oqus.onSession((s) => {
+      if (token) api.reportUsage(token, s).catch(() => {})
+    })
+  }, [token])
+
   // Fetch this user's access key for a server and hand it to the native tunnel.
   // Assumes the bridge exists; status/toasts arrive via the onStatus subscription.
   const openTunnel = useCallback(

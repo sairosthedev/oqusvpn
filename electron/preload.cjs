@@ -39,6 +39,17 @@ contextBridge.exposeInMainWorld("oqus", {
     return () => ipcRenderer.removeListener("vpn:throughput", listener)
   },
 
+  /**
+   * Subscribe to finished-session usage (bytes + duration) on disconnect.
+   * @param {(p: { serverId: string, bytesDown: number, bytesUp: number, durationSec: number }) => void} cb
+   * @returns {() => void} unsubscribe
+   */
+  onSession: (cb) => {
+    const listener = (_evt, payload) => cb(payload)
+    ipcRenderer.on("vpn:session", listener)
+    return () => ipcRenderer.removeListener("vpn:session", listener)
+  },
+
   /** Arm/disarm the kill switch live while connected. */
   setKillSwitch: (on) => ipcRenderer.invoke("vpn:setKillSwitch", on),
 

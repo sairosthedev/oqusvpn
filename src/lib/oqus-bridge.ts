@@ -15,6 +15,7 @@ export type TunnelConfig = {
 }
 
 export type Throughput = { down: number; up: number }
+export type SessionUsage = { serverId: string; bytesDown: number; bytesUp: number; durationSec: number }
 
 export type OqusBridge = {
   connect: (config: TunnelConfig) => Promise<{ ok: boolean; error?: string }>
@@ -22,6 +23,7 @@ export type OqusBridge = {
   getStatus: () => Promise<{ status: TunnelStatus; detail?: string }>
   onStatus: (cb: (p: { status: TunnelStatus; detail?: string }) => void) => () => void
   onThroughput: (cb: (p: Throughput) => void) => () => void
+  onSession: (cb: (p: SessionUsage) => void) => () => void
   setKillSwitch: (on: boolean) => Promise<{ ok: boolean; error?: string }>
   getAutoLaunch: () => Promise<boolean>
   setAutoLaunch: (on: boolean) => Promise<boolean>

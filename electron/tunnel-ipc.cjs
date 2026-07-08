@@ -17,6 +17,11 @@ function registerTunnelIpc(getWindow) {
     if (win && !win.isDestroyed()) win.webContents.send("vpn:throughput", payload)
   })
 
+  tunnel.on("session", (payload) => {
+    const win = getWindow()
+    if (win && !win.isDestroyed()) win.webContents.send("vpn:session", payload)
+  })
+
   ipcMain.handle("vpn:connect", async (_evt, config) => {
     try {
       await tunnel.connect(config)

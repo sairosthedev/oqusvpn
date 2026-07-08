@@ -5,6 +5,7 @@
 export type AuthUser = {
   id: string
   email: string
+  role: string
   verified: boolean
   fullName: string | null
   phone: string | null
@@ -54,6 +55,42 @@ async function request<T>(path: string, init?: RequestInit & { token?: string })
   return body as T
 }
 
+export type UsageStats = {
+  bytesDown: number
+  bytesUp: number
+  durationSec: number
+  sessions: number
+  daily: { day: string; sec: number }[]
+}
+export type SessionReport = { serverId?: string; bytesDown: number; bytesUp: number; durationSec: number }
+
+export type AdminServer = {
+  serverId: string
+  country: string
+  city: string
+  code: string
+  region: string
+  lat: number
+  lng: number
+  host: string
+  port: number
+  method: string
+  secret: string
+  fastest: boolean
+  enabled: boolean
+}
+export type AdminUser = {
+  id: string
+  email: string
+  role: string
+  verified: boolean
+  fullName: string | null
+  phone: string | null
+  connects: number
+  createdAt: string
+  usage: { bytesDown: number; bytesUp: number; durationSec: number; sessions: number }
+}
+
 export const api = {
   signup: (email: string, password: string) =>
     request<AuthResponse>("/api/auth/signup", { method: "POST", body: JSON.stringify({ email, password }) }),
@@ -64,4 +101,19 @@ export const api = {
   me: (token: string) => request<{ user: AuthUser }>("/api/auth/me", { token }),
   getAccessKey: (token: string, serverId: string) =>
     request<AccessKeyResponse>(`/api/access-key?serverId=${encodeURIComponent(serverId)}`, { token }),
+
+  // usage metering
+  reportUsage: (token: string, s: SessionReport) =>
+    request<{ ok: boolean }>("/api/usage", { method: "POST", token, body: JSON.stringify(s) }),
+  getStats: (token: string) => request<{ stats: UsageStats }>("/api/me/stats", { token }),
+
+  // admin
+  adminListServers: (token: string) => request<{ servers: AdminServer[] }>("/api/admin/servers", { token }),
+  adminCreateServer: (token: string, body: Record<string, unknown>) =>
+    request<{ server: AdminServer }>("/api/admin/servers", { method: "POST", token, body: JSON.stringify(body) }),
+  adminUpdateServer: (token: string, id: string, body: Record<string, unknown>) =>
+    request<{ server: AdminServer }>(`/api/admin/servers/${encodeURIComponent(id)}`, { method: "PUT", token, body: JSON.stringify(body) }),
+  adminDeleteServer: (token: string, id: string) =>
+    request<{ ok: boolean }>(`/api/admin/servers/${encodeURIComponent(id)}`, { method: "DELETE", token }),
+  adminListUsers: (token: string) => request<{ users: AdminUser[] }>("/api/admin/users", { token }),
 }
