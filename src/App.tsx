@@ -7,6 +7,7 @@ import { LocationsTab } from "./tabs/locations-tab"
 import { StatisticsTab } from "./tabs/statistics-tab"
 import { SettingsTab } from "./tabs/settings-tab"
 import { LoginModal } from "./components/login-modal"
+import { VerifyModal } from "./components/verify-modal"
 import { CommandPalette } from "./components/command-palette"
 import { ToastHost } from "./components/toast-host"
 import { SplashScreen } from "./screens/splash-screen"
@@ -23,7 +24,7 @@ const shortcuts: Record<string, Tab> = {
 
 function Desktop() {
   const [tab, setTab] = useState<Tab>("home")
-  const { focusMode, loginOpen, setLoginOpen, loggedIn, setLoggedIn, setPendingConnect, setPaletteOpen } = useUi()
+  const { focusMode, loginOpen, setLoginOpen, loggedIn, setPendingConnect, verifyOpen, setVerifyOpen, setPaletteOpen } = useUi()
   const { toggleConnection } = useVpn()
 
   useEffect(() => {
@@ -68,7 +69,8 @@ function Desktop() {
         {tab === "settings" && <SettingsTab />}
       </main>
 
-      <LoginModal open={loginOpen} onOpenChange={setLoginOpen} onLogin={() => setLoggedIn(true)} />
+      <LoginModal open={loginOpen} onOpenChange={setLoginOpen} />
+      <VerifyModal open={verifyOpen} onOpenChange={setVerifyOpen} onVerified={() => toggleConnection()} />
       <CommandPalette />
     </div>
   )

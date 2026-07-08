@@ -1,22 +1,20 @@
 import { useState } from "react"
 import * as Dialog from "@radix-ui/react-dialog"
-import { X, Loader2 } from "lucide-react"
-import { Asterisk } from "./brand"
+import { X, Loader2, ShieldCheck } from "lucide-react"
 import { useUi } from "@/lib/ui-context"
 
-type Mode = "login" | "signup"
-
-export function LoginModal({
+export function VerifyModal({
   open,
   onOpenChange,
+  onVerified,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
+  onVerified: () => void
 }) {
-  const { login, signup } = useUi()
-  const [mode, setMode] = useState<Mode>("login")
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
+  const { verify, user } = useUi()
+  const [fullName, setFullName] = useState("")
+  const [phone, setPhone] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -25,17 +23,15 @@ export function LoginModal({
     setError(null)
     setBusy(true)
     try {
-      if (mode === "signup") await signup(email, password)
-      else await login(email, password)
-      onOpenChange(false) // success — a pending connect resumes automatically
+      await verify(fullName, phone)
+      onOpenChange(false)
+      onVerified() // resume the connection the user was trying to make
     } catch (err) {
       setError((err as Error).message)
     } finally {
       setBusy(false)
     }
   }
-
-  const isSignup = mode === "signup"
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -48,50 +44,48 @@ export function LoginModal({
 
           <div className="flex flex-col items-center text-center">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-soft">
-              <Asterisk className="h-7 w-7 text-brand" />
+              <ShieldCheck className="h-7 w-7 text-brand" />
             </div>
-            <Dialog.Title className="mt-5 text-xl font-semibold text-foreground">
-              {isSignup ? "Create your account" : "Welcome back"}
-            </Dialog.Title>
+            <Dialog.Title className="mt-5 text-xl font-semibold text-foreground">Verify to keep going</Dialog.Title>
             <Dialog.Description className="mt-1.5 text-sm text-muted">
-              {isSignup
-                ? "Sign up to connect and sync across your devices"
-                : "Log in to connect and sync across your devices"}
+              You've hit the free limit. Add your name and phone to keep connecting — no extra steps after this.
             </Dialog.Description>
           </div>
 
           <form onSubmit={submit} className="mt-7 flex flex-col gap-4">
-            <label className="flex flex-col gap-1.5 text-left">
-              <span className="text-sm font-medium text-foreground">Email</span>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter your email"
-                className="rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-brand focus:ring-2 focus:ring-brand/20"
-              />
-            </label>
-            <label className="flex flex-col gap-1.5 text-left">
-              <span className="text-sm font-medium text-foreground">Password</span>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={isSignup ? "At least 8 characters" : "Enter your password"}
-                className="rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-brand focus:ring-2 focus:ring-brand/20"
-              />
-            </label>
-
-            {!isSignup && (
-              <button
-                type="button"
-                className="-mt-1 self-end text-xs font-medium text-brand transition hover:text-brand-ink"
-              >
-                Forgot password?
-              </button>
+            {user?.email && (
+              <label className="flex flex-col gap-1.5 text-left">
+                <span className="text-sm font-medium text-foreground">Email</span>
+                <input
+                  type="email"
+                  value={user.email}
+                  readOnly
+                  className="rounded-xl border border-border bg-surface-2 px-3.5 py-2.5 text-sm text-muted-foreground outline-none"
+                />
+              </label>
             )}
+            <label className="flex flex-col gap-1.5 text-left">
+              <span className="text-sm font-medium text-foreground">Full name</span>
+              <input
+                type="text"
+                required
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Your full name"
+                className="rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-brand focus:ring-2 focus:ring-brand/20"
+              />
+            </label>
+            <label className="flex flex-col gap-1.5 text-left">
+              <span className="text-sm font-medium text-foreground">Phone number</span>
+              <input
+                type="tel"
+                required
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="e.g. +234 801 234 5678"
+                className="rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-brand focus:ring-2 focus:ring-brand/20"
+              />
+            </label>
 
             {error && (
               <p className="rounded-lg bg-danger-soft px-3 py-2 text-sm font-medium text-danger">{error}</p>
@@ -103,22 +97,12 @@ export function LoginModal({
               className="mt-1 flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-3 font-semibold text-white transition hover:bg-brand-ink disabled:opacity-60"
             >
               {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-              {isSignup ? "Create account" : "Log in"}
+              Verify &amp; connect
             </button>
           </form>
 
-          <p className="mt-5 text-center text-sm text-muted">
-            {isSignup ? "Already have an account?" : "Don't have an account?"}{" "}
-            <button
-              type="button"
-              onClick={() => {
-                setMode(isSignup ? "login" : "signup")
-                setError(null)
-              }}
-              className="font-semibold text-brand transition hover:text-brand-ink"
-            >
-              {isSignup ? "Log in" : "Sign up"}
-            </button>
+          <p className="mt-4 text-center text-xs text-muted-foreground">
+            We use this only to secure your account. See our privacy policy.
           </p>
         </Dialog.Content>
       </Dialog.Portal>

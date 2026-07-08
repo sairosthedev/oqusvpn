@@ -1,7 +1,6 @@
 // Typed access to the Electron tunnel bridge (window.oqus, injected by preload).
 // In a plain browser (vite dev / web build) window.oqus is undefined and callers
 // fall back to the in-app mock, so the web experience is unchanged.
-import type { Server } from "./data"
 
 export type TunnelStatus = "disconnected" | "connecting" | "connected"
 
@@ -81,17 +80,4 @@ export function parseAccessKey(key: string): TunnelConfig {
     port = Number(hostport.slice(c + 1))
   }
   return { host, port, password, method }
-}
-
-// Default throwaway test server — matches tools/ss-server.mjs defaults.
-// Override by setting VITE_OQUS_ACCESS_KEY (an ss://… key) in .env.local.
-const DEFAULT_TEST_KEY = "ss://chacha20-ietf-poly1305:oqus-test-pw@127.0.0.1:8388"
-
-/** Resolve the tunnel config for a selected server. */
-export function getTunnelConfig(server: Server): TunnelConfig {
-  const envKey = import.meta.env.VITE_OQUS_ACCESS_KEY as string | undefined
-  const base = parseAccessKey(envKey && envKey.length > 0 ? envKey : DEFAULT_TEST_KEY)
-  // For the throwaway test we use one server for every row; carry the label
-  // through so status/toasts still name the city the user picked.
-  return { ...base, id: server.id, city: server.city }
 }

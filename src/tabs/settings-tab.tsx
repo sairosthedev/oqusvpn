@@ -31,7 +31,7 @@ const languages = ["English", "Hausa", "Yoruba", "Swahili", "Hindi", "Urdu"]
 
 export function SettingsTab() {
   const { appearance, setAppearance } = useVpn()
-  const { toast, loggedIn, setLoggedIn } = useUi()
+  const { toast, loggedIn, user, logout, setVerifyOpen } = useUi()
   const [active, setActive] = useState<(typeof categories)[number]["id"]>("connection")
 
   const [autoConnect, setAutoConnect] = useState(true)
@@ -42,6 +42,16 @@ export function SettingsTab() {
   const [privateDns, setPrivateDns] = useState(true)
   const [protocol, setProtocol] = useState("auto")
   const [language, setLanguage] = useState("English")
+
+  const displayName = user?.fullName || (user?.email ? user.email.split("@")[0] : "Guest")
+  const initials =
+    displayName
+      .split(" ")
+      .filter(Boolean)
+      .map((w) => w[0])
+      .slice(0, 2)
+      .join("")
+      .toUpperCase() || "G"
 
   return (
     <div className="flex-1 overflow-y-auto p-8">
@@ -57,11 +67,13 @@ export function SettingsTab() {
             className="flex w-full items-center gap-3 rounded-2xl bg-card p-4 text-left shadow-sm transition hover:bg-surface-2"
           >
             <span className="grid h-10 w-10 place-items-center rounded-full bg-brand text-sm font-semibold text-white">
-              AO
+              {initials}
             </span>
             <span className="flex-1 leading-tight">
-              <span className="block text-sm font-semibold">Ada Okonkwo</span>
-              <span className="block text-xs text-muted-foreground">{loggedIn ? "Signed in" : "Not signed in"}</span>
+              <span className="block text-sm font-semibold">{displayName}</span>
+              <span className="block text-xs text-muted-foreground">
+                {loggedIn ? (user?.phone ?? "Signed in") : "Not signed in"}
+              </span>
             </span>
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
           </button>
@@ -243,8 +255,21 @@ export function SettingsTab() {
                   <Row
                     icon={User}
                     title="Account details"
-                    desc={loggedIn ? "ada.okonkwo@oqus.app" : "Not signed in"}
-                    control={<ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                    desc={loggedIn ? (user?.email ?? "Signed in") : "Not signed in"}
+                    control={
+                      loggedIn ? (
+                        <span
+                          className={cn(
+                            "rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                            user?.verified ? "bg-success-soft text-success" : "bg-surface-2 text-muted-foreground",
+                          )}
+                        >
+                          {user?.verified ? "Verified" : "Unverified"}
+                        </span>
+                      ) : (
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      )
+                    }
                   />
                   <Row
                     icon={Smartphone}
@@ -254,11 +279,21 @@ export function SettingsTab() {
                   />
                 </div>
 
+                {loggedIn && !user?.verified && (
+                  <button
+                    type="button"
+                    onClick={() => setVerifyOpen(true)}
+                    className="rounded-xl bg-brand py-2.5 text-sm font-semibold text-white transition hover:bg-brand-ink"
+                  >
+                    Verify account
+                  </button>
+                )}
+
                 {loggedIn ? (
                   <button
                     type="button"
                     onClick={() => {
-                      setLoggedIn(false)
+                      logout()
                       toast("Signed out", "brand")
                     }}
                     className="flex items-center justify-center gap-2 rounded-xl border border-border py-2.5 text-sm font-semibold text-danger transition hover:bg-danger-soft"

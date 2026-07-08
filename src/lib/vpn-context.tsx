@@ -10,7 +10,8 @@ import {
 } from "react"
 import { servers, type Server } from "./data"
 import { useUi } from "./ui-context"
-import { hasBridge, getTunnelConfig } from "./oqus-bridge"
+import { hasBridge, parseAccessKey } from "./oqus-bridge"
+import { api, ApiError } from "./api"
 
 export type Status = "disconnected" | "connecting" | "connected"
 export type Appearance = "auto" | "light" | "dark"
@@ -36,7 +37,7 @@ function systemTheme(): Theme {
 }
 
 export function VpnProvider({ children }: { children: ReactNode }) {
-  const { toast, loggedIn, setLoginOpen, pendingConnect, setPendingConnect } = useUi()
+  const { toast, loggedIn, token, setLoginOpen, setVerifyOpen, pendingConnect, setPendingConnect } = useUi()
   const [status, setStatus] = useState<Status>("disconnected")
   const [serverId, setServerId] = useState<string>(servers[0].id)
   const [elapsed, setElapsed] = useState(2757) // 00:45:57 to match spec
@@ -97,27 +98,40 @@ export function VpnProvider({ children }: { children: ReactNode }) {
   }, [toast])
 
   // The connect handshake, shared by the connect button and the post-login resume.
-  const beginConnect = useCallback(() => {
+  const beginConnect = useCallback(async () => {
     const s = servers.find((sv) => sv.id === serverId) ?? servers[0]
-    // Real tunnel path (Electron): status/toasts arrive via the onStatus effect.
+    // Real tunnel path (Electron): ask the backend for this user's access key,
+    // then hand it to the native tunnel. Status/toasts arrive via onStatus.
     if (hasBridge() && window.oqus) {
       setStatus("connecting")
-      window.oqus.connect(getTunnelConfig(s)).then((res) => {
+      try {
+        if (!token) throw new Error("Not signed in")
+        const { accessKey } = await api.getAccessKey(token, s.id)
+        const cfg = { ...parseAccessKey(accessKey), id: s.id, city: s.city }
+        const res = await window.oqus.connect(cfg)
         if (!res.ok) {
           setStatus("disconnected")
           toast(res.error || "Connection failed", "danger")
         }
-      })
+      } catch (err) {
+        setStatus("disconnected")
+        if (err instanceof ApiError && err.body?.needsVerification) {
+          setVerifyOpen(true) // free limit hit — prompt for name + phone
+          toast(err.message, "danger")
+        } else {
+          toast((err as Error).message || "Couldn't get access key", "danger")
+        }
+      }
       return
     }
-    // Browser mock path.
+    // Browser mock path (no native tunnel).
     setStatus("connecting")
     window.setTimeout(() => {
       setStatus("connected")
       setElapsed(0)
       toast(`Connected · ${s.city}`, "success")
     }, 1800)
-  }, [serverId, toast])
+  }, [serverId, toast, token, setVerifyOpen])
 
   const toggleConnection = useCallback(() => {
     const prev = statusRef.current

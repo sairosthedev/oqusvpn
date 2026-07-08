@@ -1,115 +1,77 @@
 # OqusVPN — real tunnel setup (Windows)
 
-The app now runs as an Electron desktop client. Connecting is wired end-to-end:
+The app is an Electron desktop client. Connecting is wired end-to-end:
 
 ```
-React UI  ──IPC──▶  Electron main  ──▶  TunnelManager  ──▶  tun2socks + routes
-(connect btn)       (main.cjs)          (tunnel.cjs)        (all device traffic)
+React UI ──IPC──▶ Electron main ──▶ TunnelManager ──▶ sslocal --protocol tun
+(Connect)         (main.cjs)        (tunnel.cjs)        + Wintun + routing
+                                                        (all device traffic)
 ```
 
-There are two modes:
+Two modes:
 
 | Mode | How | What happens |
 |------|-----|--------------|
-| **Mock** (default) | `npm run electron:dev` | Connect simulates the handshake. No driver, no admin. Good for UI work. |
-| **Real** | set `OQUS_REAL=1`, run elevated | Real full-device VPN: a TUN adapter + tun2socks (Shadowsocks) + split-default routing. |
+| **Mock** (default) | `npm run dev` | Connect simulates the handshake. No driver/admin. |
+| **Real** | `OQUS_REAL=1`, run **elevated** | Full-device VPN: a Wintun adapter + Shadowsocks (TUN mode) + routing. |
 
----
+The real path uses **shadowsocks-rust `sslocal --protocol tun`** with **Wintun**
+(WireGuard's userspace TUN driver) — the current, maintained approach.
+`outline-go-tun2socks` was archived in 2024; we don't use it.
 
-## Run the app (mock mode)
+## What's already done
+- **Binaries fetched** → `resources/bin/sslocal.exe` + `resources/bin/wintun.dll`
+  (prebuilt — no Go/C build, no separate TAP driver install).
+- **Server deployed** on Azure (`shadowsocks-libev`, chacha20-ietf-poly1305).
+- **Proven working:** `sslocal` against the server changes the exit IP
+  (`197.x → 102.37.129.78`).
+- **Backend** issues the real `ss://` key (in `server/.env`).
 
+## Run it (mock) — any machine, no admin
 ```bash
 npm install
-npm run electron:dev      # vite dev server + Electron window
+npm run dev          # backend + Vite + Electron; Connect is simulated
 ```
-
-You'll get the full UI in a desktop window. Connect works as a simulation.
-
-Web build still works too: `npm run dev` (browser) is unchanged.
-
----
 
 ## Turn on the REAL full-device tunnel
+It edits the routing table and creates a network adapter, so it must run **as
+Administrator**.
 
-Real mode needs three things on **your** machine, and the app must run **as Administrator** (it edits the routing table).
+1. Start the backend (serves the real key):
+   ```powershell
+   npm run dev:server        # or: npm run dev -w server  (uses Atlas)
+   ```
+2. In an **Administrator** terminal, build the app and launch Electron in real mode:
+   ```powershell
+   npm run build
+   $env:OQUS_REAL = "1"
+   npm run electron          # loads dist/, real tunnel enabled
+   ```
+   (For hot-reload dev as admin: `$env:OQUS_REAL="1"; $env:OQUS_DEV="1"; npm run electron:dev`.)
+3. Sign in → **Connect**. The TunnelManager will:
+   - launch `sslocal` in TUN mode (Wintun creates the `OqusVPN` adapter),
+   - pin the Shadowsocks connection to your physical NIC (no loop),
+   - split-route all traffic into the tunnel, set DNS.
+4. **Verify:** open an IP-check site — it should read the **server's** IP.
+   Disconnect reverses every route/DNS change; quitting tears it down.
 
-### 1. Install a TUN/TAP adapter
+> If Connect fails with *"adapter didn't come up — running as Administrator?"*,
+> the terminal isn't elevated. Routing is the empirical part on Windows; if all
+> traffic doesn't flow, check `route print` for the `10.255.0.x` entries and the
+> `OqusVPN` adapter, and tweak the routes in `tunnel.cjs` `_connectReal()`.
 
-Install the OpenVPN **tap-windows** driver (same one Outline uses):
+## Sanity-check the pieces independently
+- **Server:** paste the `ss://` key (from `server/.env`) into the Outline client
+  → connect → your IP should be the server's.
+- **Client SS path (no admin):** run sslocal as a plain SOCKS5 proxy and curl through it:
+  ```powershell
+  .\resources\bin\sslocal.exe -b 127.0.0.1:1080 -s <ip>:8388 -m chacha20-ietf-poly1305 -k <password>
+  curl.exe -s --socks5-hostname 127.0.0.1:1080 https://ifconfig.me   # → server IP
+  ```
 
-- Download `tap-windows` from the OpenVPN site and install, **or** run `tapctl create` from an OpenVPN install.
-- Rename the new adapter's connection to **`OqusVPN-TAP`** (Control Panel → Network Connections → rename). This name must match `TAP_NAME` in `electron/tunnel.cjs`.
-
-### 2. Get the `tun2socks.exe` binary
-
-Build it from Jigsaw's [`outline-go-tun2socks`](https://github.com/Jigsaw-Code/outline-go-tun2socks) (needs Go):
-
-```bash
-git clone https://github.com/Jigsaw-Code/outline-go-tun2socks
-cd outline-go-tun2socks
-# build the Windows CLI (see its README / Makefile), producing tun2socks.exe
-```
-
-Place the result at:
-
-```
-resources/bin/tun2socks.exe
-```
-
-> The flag names in `tunnel.cjs` (`-tunName`, `-proxyHost`, `-proxyCipher`, …) match
-> outline-go-tun2socks. If you build a different tun2socks, adjust the args in
-> `_connectReal()`.
-
-### 3. Start a Shadowsocks server + set the access key
-
-For a quick test server:
-
-```bash
-npm run ss:server            # runs ssserver, prints an ss:// key
-```
-
-> ⚠️ A **local** server proves the plumbing but will *loop* under full-device
-> routing (the server's own upstream traffic gets recaptured). For a clean
-> full-device test, run the server on a **separate host** (a cheap VPS, another
-> machine, or a Docker box) and pass its IP: `npm run ss:server -- <public-ip>`.
-
-Put the printed key in `.env.local` at the repo root:
-
-```
-VITE_OQUS_ACCESS_KEY=ss://...your-key...
-```
-
-### 4. Launch elevated in real mode
-
-Open an **Administrator** terminal:
-
-```powershell
-$env:OQUS_REAL = "1"
-$env:OQUS_DEV  = "1"
-npm run electron:dev
-```
-
-Click **Connect**. The manager will:
-
-1. resolve the server IP and read your current default gateway,
-2. set the TAP adapter address + DNS,
-3. launch `tun2socks.exe`,
-4. add a bypass route to the server, then split the default route into the TAP.
-
-Verify: browse to an IP-check site — your public IP should be the server's
-(only when the server is remote). Disconnecting reverses every route/DNS change,
-and quitting the app tears the tunnel down automatically.
-
----
-
-## What's still TODO for production
-
-- **Kill switch:** `tunnel.cjs` has the routing hooks; a real kill switch needs
-  WFP/Windows-Firewall rules blocking non-TUN egress. (Currently a no-op.)
-- **Elevation UX:** ship the routing changes via a small helper service (like
-  Outline's `OutlineService`) so users don't run the whole app as admin.
-- **Per-server credentials:** today every server row uses the one test key. Wire
-  real `ss://` keys per server (or fetch them from your backend after login).
-- **Reconnect/health:** detect tun2socks drops and auto-reconnect.
-- **macOS/Linux:** `_connectReal()` is Windows-only; add NetworkExtension (macOS)
-  and a `tun`/`ip route` path (Linux).
+## Still TODO for production
+- **Kill switch:** WFP/firewall rules blocking non-tunnel egress (currently none).
+- **Elevation UX:** ship routing via a small helper service so users don't run
+  the whole app as admin.
+- **Per-user keys + revocation:** swap `StaticKeyProvider` for real provisioning.
+- **Reconnect/health**, IPv6 handling, **macOS/Linux** tunnel paths.

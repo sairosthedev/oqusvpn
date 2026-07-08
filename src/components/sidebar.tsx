@@ -21,7 +21,7 @@ export function Sidebar({
   onChange: (t: Tab) => void
 }) {
   const { theme, toggleTheme } = useVpn()
-  const { loggedIn, setLoggedIn, toast } = useUi()
+  const { loggedIn, logout, toast } = useUi()
 
   return (
     <aside className="flex w-64 shrink-0 flex-col gap-6 border-r border-border/70 bg-surface/60 p-5">
@@ -78,7 +78,7 @@ export function Sidebar({
           <button
             type="button"
             onClick={() => {
-              setLoggedIn(false)
+              logout()
               toast("Signed out", "brand")
             }}
             className="text-sm font-medium text-muted transition-colors hover:text-danger"

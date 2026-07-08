@@ -4,13 +4,22 @@
   "version": "0.1.0",
   "type": "module",
   "main": "electron/main.cjs",
+  "workspaces": [
+    "server"
+  ],
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently -k -n api,web,app -c cyan,green,magenta \"npm:dev:server\" \"vite --port 5173 --strictPort\" \"wait-on tcp:5173 && cross-env OQUS_DEV=1 electron .\"",
+    "dev:web": "concurrently -k -n api,web -c cyan,green \"npm:dev:server\" \"vite\"",
+    "dev:client": "vite",
+    "dev:server": "npm run dev:mem -w server",
     "build": "tsc -b && vite build",
+    "build:server": "npm run build -w server",
+    "build:all": "npm run build:server && npm run build",
     "preview": "vite preview",
     "electron": "electron .",
     "electron:dev": "concurrently -k \"vite --port 5173 --strictPort\" \"wait-on tcp:5173 && cross-env OQUS_DEV=1 electron .\"",
     "electron:build": "npm run build && electron-builder",
+    "smoke:server": "npm run smoke -w server",
     "ss:server": "node tools/ss-server.mjs"
   },
   "dependencies": {
