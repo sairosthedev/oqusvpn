@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "OqusVPN",
+    "slug": "oqusvpn",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "scheme": "oqusvpn",
+    "newArchEnabled": true,
+    "android": {
+      "package": "app.oqus.vpn",
+      "permissions": [
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.POST_NOTIFICATIONS"
+      ]
+    },
+    "ios": {
+      "bundleIdentifier": "app.oqus.vpn",
+      "supportsTablet": false
+    },
+    "extra": {
+      "eas": {
+        "projectId": ""
+      }
+    },
+    "plugins": [
+      "expo-asset",
+      "expo-font"
+    ]
+  }
+}

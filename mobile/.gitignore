@@ -1,0 +1,13 @@
+node_modules/
+.expo/
+dist/
+web-build/
+*.log
+.DS_Store
+
+# Native build output (created by expo prebuild / EAS)
+/android
+/ios
+
+# Local env
+.env*.local

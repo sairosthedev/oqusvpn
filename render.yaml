@@ -1,0 +1,33 @@
+# One-click backend deploy for OqusVPN (Render blueprint).
+#   1. Push this repo to GitHub (already at github.com/sairosthedev/oqusvpn).
+#   2. On render.com → New → Blueprint → pick this repo. It reads this file.
+#   3. Fill the env vars marked `sync: false` (Render prompts you) — use the SAME
+#      values as server/.env (MONGO_URI, JWT_SECRET, OQUS_ACCESS_KEY, admin creds).
+#   4. Deploy → you get https://oqusvpn-api.onrender.com (your public backend).
+#
+# Then point the clients at it:
+#   • Web (Vercel):  set env var VITE_OQUS_API = https://oqusvpn-api.onrender.com → redeploy
+#   • Mobile:        set EXPO_PUBLIC_OQUS_API (or mobile/src/config.ts API_BASE) to the same URL
+#   • Desktop:       already talks to it via the same api client / __OQUS_API__
+services:
+  - type: web
+    name: oqusvpn-api
+    runtime: node
+    rootDir: server
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    healthCheckPath: /health
+    envVars:
+      - key: MONGO_URI          # your Atlas SRV URI (Network Access must allow 0.0.0.0/0 for Render)
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: OQUS_ACCESS_KEY    # your Azure ss:// key
+        sync: false
+      - key: OQUS_ADMIN_EMAIL
+        sync: false
+      - key: OQUS_ADMIN_PASSWORD
+        sync: false
+      - key: CORS_ORIGIN        # lock the API to your web origin
+        value: https://oqusvpn.vercel.app
