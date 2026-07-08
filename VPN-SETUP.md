@@ -1,21 +1,21 @@
 # OqusVPN — real tunnel (Windows) — PROVEN WORKING
 
-Full-device VPN. Verified end-to-end: with the tunnel up, the machine's exit IP
-becomes the server's, DNS resolves through it, and teardown restores everything.
+Full-device VPN, **no mock**. Verified end-to-end: with the tunnel up, the
+machine's exit IP becomes the server's, DNS resolves through it, the kill switch
+prevents leaks on drop, and teardown restores everything.
 
 ```
 React UI ─IPC─▶ Electron main ─▶ TunnelManager ─▶ sslocal (SOCKS5, tcp+udp)
 (Connect)       (main.cjs)        (tunnel.cjs)      + tun2socks (tun://, Wintun)
-                                                     + on-link routing
+                                                     + on-link routing + kill switch
                                                      = all device traffic
 ```
 
-Two modes:
-
-| Mode | How | What happens |
-|------|-----|--------------|
-| **Mock** (default) | `npm run dev` | Connect is simulated. No driver/admin. |
-| **Real** | `OQUS_REAL=1`, run **elevated** | Genuine full-device tunnel. |
+**The tunnel is real and always-on** — there is no simulated mode:
+- **Desktop app (Electron)** creates the tunnel. It **must run as Administrator**;
+  connecting without admin fails clearly ("adapter didn't come up").
+- **Browser (`npm run dev:web`)** cannot run a VPN (sandboxed) — Connect there
+  tells you to use the desktop app. The browser is the account/UI surface only.
 
 ## The stack (all binaries are in `resources/bin/`, fetched — no build)
 - **`sslocal.exe`** (shadowsocks-rust) — Shadowsocks client, exposes a local
@@ -35,33 +35,31 @@ Two modes:
 
 Disconnect reverses every route and kills both processes (tun2socks removes the adapter).
 
-## Run it (mock) — any machine, no admin
-```bash
-npm install
-npm run dev
-```
-
-## Turn on the REAL tunnel
-Creates a network adapter + edits routes → must run **as Administrator**.
+## Run the desktop app (real tunnel — needs Administrator)
+Creates a network adapter + edits routes, so it **must run as Administrator**.
 
 1. Backend (serves the real key):
    ```powershell
    npm run dev:server        # in-memory Mongo, or: npm run dev -w server (Atlas)
    ```
-2. **Administrator** terminal:
+2. Build once, then launch Electron from an **Administrator** terminal:
    ```powershell
    npm run build
-   $env:OQUS_REAL = "1"
-   npm run electron
+   npm run electron          # always real; add $env:OQUS_KILLSWITCH="0" to disable the kill switch
    ```
 3. Sign in → **Connect** → check an IP site: it should show the server's IP.
 
-> If Connect fails with *"adapter didn't come up — Administrator?"*, the terminal
-> isn't elevated. If the app quits with *"tun2socks/sslocal exited"*, check that
-> all three binaries are in `resources/bin/`.
+> Connect **without admin** fails clearly ("adapter didn't come up"). If the app
+> quits with *"tun2socks/sslocal exited"*, check the three binaries are in
+> `resources/bin/`. Panic-restore the firewall (if a kill-switched app ever
+> crashes): `netsh advfirewall set allprofiles firewallpolicy blockinbound,allowoutbound`.
+
+## Working on the UI (no tunnel)
+`npm run dev:web` runs the app in a browser for UI/account work. A browser can't
+create a VPN, so **Connect there just says "use the desktop app."** To test
+connecting, run the elevated desktop app above.
 
 ## Still TODO for production
-- **Kill switch:** WFP/firewall rules blocking non-tunnel egress.
 - **Elevation UX:** run the tunnel via a small helper service instead of the whole app as admin.
 - **Per-user keys + revocation** (swap `StaticKeyProvider`).
 - **Reconnect/health**, IPv6, **macOS/Linux** paths.

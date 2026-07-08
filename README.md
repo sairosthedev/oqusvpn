@@ -30,7 +30,7 @@ npm install
 npm run dev
 ```
 
-Starts all three together: **api** (backend, in-memory Mongo — zero setup) + **web** (Vite) + **app** (Electron window). The Connect flow runs against the live backend; the tunnel itself is mocked until the real server + driver are in place (see [VPN-SETUP.md](VPN-SETUP.md)).
+Starts all three together: **api** (backend, in-memory Mongo — zero setup) + **web** (Vite) + **app** (Electron window). The tunnel is **real** — to actually connect, run the Electron app **as Administrator** (`npm run build && npm run electron` in an elevated terminal). See [VPN-SETUP.md](VPN-SETUP.md).
 
 ## Scripts
 

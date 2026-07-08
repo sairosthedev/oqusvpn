@@ -1,18 +1,17 @@
 // OqusVPN — TunnelManager
 // ---------------------------------------------------------------------------
-// Full-device VPN on Windows. PROVEN working recipe (exit IP changes device-wide):
-//   sslocal (SOCKS5, tcp_and_udp)  +  tun2socks (tun://, Wintun)  +  on-link routing.
+// The real full-device VPN on Windows (no mock). PROVEN recipe — the exit IP
+// changes device-wide:
+//   sslocal (SOCKS5, tcp_and_udp)  +  tun2socks (tun://, Wintun)  +  on-link routing
+//   + a fail-closed kill switch.
 //
-//   • MOCK  (default)  — simulates the handshake; no binary/driver/admin.
-//   • REAL  (OQUS_REAL=1, run elevated) — the genuine full-device tunnel.
-//
-// REAL mode needs (all in the repo except elevation):
+// Requires (all in the repo except the last):
 //   resources/bin/sslocal.exe   (shadowsocks-rust — Shadowsocks client)
 //   resources/bin/tun2socks.exe (xjasonlyu/tun2socks — TUN <-> SOCKS5)
 //   resources/bin/wintun.dll    (WireGuard's userspace TUN driver)
 //   + the app running as Administrator (creates the adapter, edits routes).
 //
-// See VPN-SETUP.md.
+// Connecting without admin fails clearly ("adapter didn't come up"). See VPN-SETUP.md.
 const { EventEmitter } = require("node:events")
 const { spawn, execFile } = require("node:child_process")
 const dns = require("node:dns").promises
@@ -20,13 +19,15 @@ const path = require("node:path")
 const os = require("node:os")
 const fs = require("node:fs")
 
-const REAL = process.env.OQUS_REAL === "1"
+// Kill switch: on by default; set OQUS_KILLSWITCH=0 to disable (e.g. debugging).
+const KILLSWITCH = process.env.OQUS_KILLSWITCH !== "0"
 
 const TUN_NAME = "OqusVPN"
 const TUN_ADDR = "10.255.0.2"
 const TUN_MASK = "255.255.255.0"
 const TUN_DNS = "9.9.9.9"
 const SOCKS_PORT = 10808 // local SOCKS5 that sslocal exposes and tun2socks uses
+const KS_RULES = ["OqusKS-Tun", "OqusKS-Server", "OqusKS-Loopback", "OqusKS-DHCP"]
 
 function binDir() {
   return process.resourcesPath && fs.existsSync(path.join(process.resourcesPath, "bin"))
@@ -63,7 +64,6 @@ class TunnelManager extends EventEmitter {
     this.serverIp = null
     this.gateway = null
     this.lastLog = ""
-    this._mockTimer = null
   }
 
   getStatus() {
@@ -78,8 +78,7 @@ class TunnelManager extends EventEmitter {
 
   async connect(config) {
     if (this.status === "connected" || this.status === "connecting") return
-    this._set("connecting", REAL ? "Starting tunnel…" : "Securing tunnel…")
-    if (!REAL) return this._connectMock(config)
+    this._set("connecting", "Starting tunnel…")
     try {
       await this._connectReal(config)
     } catch (err) {
@@ -90,26 +89,13 @@ class TunnelManager extends EventEmitter {
   }
 
   async disconnect() {
-    if (this._mockTimer) {
-      clearTimeout(this._mockTimer)
-      this._mockTimer = null
-    }
-    if (REAL) await this._teardownReal()
+    await this._teardownReal()
     this._set("disconnected")
   }
 
-  // --- MOCK ----------------------------------------------------------------
-  _connectMock(config) {
-    const target = config && config.host ? `${config.host}:${config.port}` : "unknown"
-    this._mockTimer = setTimeout(() => {
-      this._mockTimer = null
-      this._set("connected", `Mock tunnel → ${target}`)
-    }, 1600)
-  }
-
-  // --- REAL (Windows full-device) ------------------------------------------
+  // --- Windows full-device tunnel ------------------------------------------
   async _connectReal(config) {
-    if (process.platform !== "win32") throw new Error("Real mode is Windows-only for now")
+    if (process.platform !== "win32") throw new Error("The VPN tunnel is Windows-only for now")
     const { host, port, password, method } = config || {}
     if (!host || !port || !password || !method) throw new Error("Incomplete server config")
 
@@ -169,7 +155,29 @@ class TunnelManager extends EventEmitter {
     // 6) DNS through the tunnel.
     await runQuiet("netsh", ["interface", "ip", "set", "dnsservers", `name=${TUN_NAME}`, "static", TUN_DNS, "primary"])
 
+    // 7) Kill switch — block everything that isn't the tunnel, the server, or loopback.
+    if (KILLSWITCH) await this._enableKillSwitch()
+
     this._set("connected", `All traffic via ${config.city || host}`)
+  }
+
+  // Fail-closed firewall: default-block outbound, allow only tun-sourced traffic,
+  // the Shadowsocks link to the server, loopback, and DHCP. If the tunnel drops,
+  // fallback traffic leaves the physical NIC (source != tun IP) and is dropped.
+  async _enableKillSwitch() {
+    await run("netsh", ["advfirewall", "set", "allprofiles", "firewallpolicy", "blockinbound,blockoutbound"])
+    await run("netsh", ["advfirewall", "firewall", "add", "rule", "name=OqusKS-Tun", "dir=out", "action=allow", `localip=${TUN_ADDR}`])
+    await run("netsh", ["advfirewall", "firewall", "add", "rule", "name=OqusKS-Server", "dir=out", "action=allow", `remoteip=${this.serverIp}`])
+    await run("netsh", ["advfirewall", "firewall", "add", "rule", "name=OqusKS-Loopback", "dir=out", "action=allow", "localip=127.0.0.1", "remoteip=127.0.0.1"])
+    await run("netsh", ["advfirewall", "firewall", "add", "rule", "name=OqusKS-DHCP", "dir=out", "action=allow", "protocol=UDP", "localport=68", "remoteport=67"])
+  }
+
+  async _disableKillSwitch() {
+    // Restore first so connectivity returns even if later teardown steps fail.
+    await runQuiet("netsh", ["advfirewall", "set", "allprofiles", "firewallpolicy", "blockinbound,allowoutbound"])
+    for (const name of KS_RULES) {
+      await runQuiet("netsh", ["advfirewall", "firewall", "delete", "rule", `name=${name}`])
+    }
   }
 
   _onProcExit(name, code) {
@@ -181,6 +189,7 @@ class TunnelManager extends EventEmitter {
   }
 
   async _teardownReal() {
+    if (KILLSWITCH) await this._disableKillSwitch() // restore connectivity first
     if (this.tunIdx) {
       await runQuiet("netsh", ["interface", "ipv4", "delete", "route", "prefix=0.0.0.0/1", `interface=${this.tunIdx}`])
       await runQuiet("netsh", ["interface", "ipv4", "delete", "route", "prefix=128.0.0.0/1", `interface=${this.tunIdx}`])

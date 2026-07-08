@@ -40,14 +40,14 @@ export function VpnProvider({ children }: { children: ReactNode }) {
   const { toast, loggedIn, token, setLoginOpen, setVerifyOpen, pendingConnect, setPendingConnect } = useUi()
   const [status, setStatus] = useState<Status>("disconnected")
   const [serverId, setServerId] = useState<string>(servers[0].id)
-  const [elapsed, setElapsed] = useState(2757) // 00:45:57 to match spec
+  const [elapsed, setElapsed] = useState(0)
   const [switching, setSwitching] = useState(false)
   const [appearance, setAppearance] = useState<Appearance>("light")
   const [systemDark, setSystemDark] = useState<Theme>(() =>
     typeof window !== "undefined" ? systemTheme() : "light",
   )
   const timerRef = useRef<number | null>(null)
-  const switchRef = useRef<number | null>(null)
+  const switchingRef = useRef(false) // true while re-tunnelling to another server
   const statusRef = useRef<Status>(status)
   statusRef.current = status
 
@@ -91,47 +91,54 @@ export function VpnProvider({ children }: { children: ReactNode }) {
       if (s === "connected") {
         setElapsed(0)
         toast(detail || "Connected", "success")
-      } else if (s === "disconnected") {
+      } else if (s === "disconnected" && !switchingRef.current) {
+        // stay quiet during an intentional server switch
         toast(detail?.startsWith("Failed") ? detail : "Disconnected · you're exposed", "danger")
       }
     })
   }, [toast])
 
-  // The connect handshake, shared by the connect button and the post-login resume.
-  const beginConnect = useCallback(async () => {
-    const s = servers.find((sv) => sv.id === serverId) ?? servers[0]
-    // Real tunnel path (Electron): ask the backend for this user's access key,
-    // then hand it to the native tunnel. Status/toasts arrive via onStatus.
-    if (hasBridge() && window.oqus) {
-      setStatus("connecting")
-      try {
-        if (!token) throw new Error("Not signed in")
-        const { accessKey } = await api.getAccessKey(token, s.id)
-        const cfg = { ...parseAccessKey(accessKey), id: s.id, city: s.city }
-        const res = await window.oqus.connect(cfg)
-        if (!res.ok) {
-          setStatus("disconnected")
-          toast(res.error || "Connection failed", "danger")
-        }
-      } catch (err) {
-        setStatus("disconnected")
-        if (err instanceof ApiError && err.body?.needsVerification) {
-          setVerifyOpen(true) // free limit hit — prompt for name + phone
-          toast(err.message, "danger")
-        } else {
-          toast((err as Error).message || "Couldn't get access key", "danger")
-        }
+  // Fetch this user's access key for a server and hand it to the native tunnel.
+  // Assumes the bridge exists; status/toasts arrive via the onStatus subscription.
+  const openTunnel = useCallback(
+    async (id: string) => {
+      const s = servers.find((sv) => sv.id === id) ?? servers[0]
+      if (!token) throw new Error("Not signed in")
+      const { accessKey } = await api.getAccessKey(token, id)
+      const cfg = { ...parseAccessKey(accessKey), id, city: s.city }
+      const res = await window.oqus!.connect(cfg)
+      if (!res.ok) throw new Error(res.error || "Connection failed")
+    },
+    [token],
+  )
+
+  const reportConnectError = useCallback(
+    (err: unknown) => {
+      setStatus("disconnected")
+      if (err instanceof ApiError && err.body?.needsVerification) {
+        setVerifyOpen(true) // free limit hit — prompt for name + phone
+        toast(err.message, "danger")
+      } else {
+        toast((err as Error).message || "Couldn't reach the server", "danger")
       }
+    },
+    [toast, setVerifyOpen],
+  )
+
+  // The connect handshake, shared by the connect button and the post-login resume.
+  // The real tunnel only exists in the desktop app (a browser can't create a VPN).
+  const beginConnect = useCallback(async () => {
+    if (!hasBridge() || !window.oqus) {
+      toast("Connecting requires the OqusVPN desktop app.", "danger")
       return
     }
-    // Browser mock path (no native tunnel).
     setStatus("connecting")
-    window.setTimeout(() => {
-      setStatus("connected")
-      setElapsed(0)
-      toast(`Connected · ${s.city}`, "success")
-    }, 1800)
-  }, [serverId, toast, token, setVerifyOpen])
+    try {
+      await openTunnel(serverId)
+    } catch (err) {
+      reportConnectError(err)
+    }
+  }, [serverId, openTunnel, reportConnectError, toast])
 
   const toggleConnection = useCallback(() => {
     const prev = statusRef.current
@@ -175,19 +182,29 @@ export function VpnProvider({ children }: { children: ReactNode }) {
     (id: string) => {
       const target = servers.find((s) => s.id === id)
       setServerId(id)
-      // If already connected, hand over the tunnel with a brief "Switching…" shimmer.
-      if (statusRef.current === "connected") {
-        setSwitching(true)
-        if (switchRef.current) window.clearTimeout(switchRef.current)
-        switchRef.current = window.setTimeout(() => {
-          setSwitching(false)
-          if (target) toast(`Switched · ${target.city}`, "success")
-        }, 1500)
-      } else if (target) {
-        toast(`${target.city} selected`, "brand")
+      if (statusRef.current !== "connected") {
+        if (target) toast(`${target.city} selected`, "brand")
+        return
       }
+      // Connected → real switch: drop the current tunnel and re-tunnel to the new
+      // server. The kill switch keeps traffic contained during the brief gap.
+      if (!hasBridge() || !window.oqus) return
+      switchingRef.current = true
+      setSwitching(true)
+      ;(async () => {
+        try {
+          await window.oqus!.disconnect()
+          setStatus("connecting")
+          await openTunnel(id)
+        } catch (err) {
+          reportConnectError(err)
+        } finally {
+          switchingRef.current = false
+          setSwitching(false)
+        }
+      })()
     },
-    [toast],
+    [toast, openTunnel, reportConnectError],
   )
 
   const toggleTheme = useCallback(
