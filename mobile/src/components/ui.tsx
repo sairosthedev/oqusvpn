@@ -2,25 +2,19 @@ import { useEffect, useRef } from "react"
 import {
   Animated,
   Easing,
-  LayoutAnimation,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
-  UIManager,
   View,
   type StyleProp,
   type TextStyle,
   type ViewStyle,
 } from "react-native"
+import { BlurView } from "expo-blur"
 import Svg, { Rect } from "react-native-svg"
 import { Power } from "lucide-react-native"
 import { RADIUS_APP, type Theme, barsFor } from "../lib/theme"
 import { font, useTheme } from "../context/theme-context"
-
-if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true)
-}
 export { useTheme }
 
 /** Six-point asterisk mark — three rounded bars at 0/60/120°, exactly like brand.tsx. */
@@ -176,8 +170,8 @@ export function txt(t: Theme, kind: "h1" | "h2" | "body" | "muted" | "cap" = "bo
   }
 }
 
-// Floating pill tab bar — a rounded card hovering above the screen edge. The
-// active tab expands into a solid-brand pill with its label; others are icons.
+// Frosted glass dock — an icon-only floating bar with a small brand dot marking
+// the active tab. Real backdrop blur (expo-blur) over a translucent tint.
 export function TabBar<K extends string>({
   tabs,
   active,
@@ -189,29 +183,36 @@ export function TabBar<K extends string>({
   onChange: (k: K) => void
   t: Theme
 }) {
+  const tint = t.dark ? "rgba(20,24,60,0.55)" : "rgba(255,255,255,0.5)"
+  const edge = t.dark ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.65)"
   return (
-    <View style={[styles.tabbar, { backgroundColor: t.card, borderColor: t.border }]}>
-      {tabs.map(({ key, label, icon: Icon }) => {
-        const on = key === active
-        return (
-          <Pressable
-            key={key}
-            onPress={() => {
-              LayoutAnimation.configureNext(LayoutAnimation.create(180, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity))
-              onChange(key)
-            }}
-            style={{
-              flexDirection: "row", alignItems: "center", gap: 7,
-              paddingVertical: 11, paddingHorizontal: on ? 16 : 13,
-              borderRadius: 999, backgroundColor: on ? t.brand : "transparent",
-            }}
-          >
-            <Icon size={21} color={on ? "#fff" : t.mutedForeground} strokeWidth={on ? 2.4 : 2} />
-            {on && <Text style={{ color: "#fff", fontFamily: font.semibold, fontSize: 13 }}>{label}</Text>}
-          </Pressable>
-        )
-      })}
+    <View style={[styles.tabWrap, shadow(12)]}>
+      <BlurView intensity={t.dark ? 40 : 55} tint={t.dark ? "dark" : "light"} style={[styles.tabbar, { borderColor: edge }]}>
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: tint }]} />
+        {tabs.map(({ key, icon: Icon }) => {
+          const on = key === active
+          return (
+            <TabItem key={key} on={on} Icon={Icon} brand={t.brand} muted={t.mutedForeground} onPress={() => onChange(key)} />
+          )
+        })}
+      </BlurView>
     </View>
+  )
+}
+
+function TabItem({ on, Icon, brand, muted, onPress }: { on: boolean; Icon: any; brand: string; muted: string; onPress: () => void }) {
+  const s = useRef(new Animated.Value(on ? 1 : 0)).current
+  useEffect(() => {
+    Animated.spring(s, { toValue: on ? 1 : 0, useNativeDriver: true, speed: 18, bounciness: 10 }).start()
+  }, [on])
+  const scale = s.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] })
+  return (
+    <Pressable onPress={onPress} style={{ alignItems: "center", justifyContent: "center", paddingVertical: 8, paddingHorizontal: 18 }}>
+      <Animated.View style={{ transform: [{ scale }] }}>
+        <Icon size={23} color={on ? brand : muted} strokeWidth={on ? 2.5 : 2} />
+      </Animated.View>
+      <Animated.View style={{ width: 6, height: 6, borderRadius: 3, marginTop: 6, backgroundColor: brand, opacity: s, transform: [{ scale: s }] }} />
+    </Pressable>
   )
 }
 
@@ -227,18 +228,20 @@ export function shadow(elevation: number): ViewStyle {
 
 const styles = StyleSheet.create({
   card: { borderRadius: 16, ...shadow(3) },
+  tabWrap: {
+    marginHorizontal: 32,
+    marginBottom: 6,
+    marginTop: 6,
+    borderRadius: 30,
+  },
   tabbar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-around",
-    alignSelf: "center",
-    marginHorizontal: 16,
-    marginBottom: 6,
-    marginTop: 6,
+    paddingVertical: 8,
     paddingHorizontal: 6,
-    paddingVertical: 6,
     borderRadius: 30,
     borderWidth: 1,
-    ...shadow(10),
+    overflow: "hidden",
   },
 })
