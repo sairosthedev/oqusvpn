@@ -25,7 +25,8 @@
     },
     "plugins": [
       "expo-asset",
-      "expo-font"
+      "expo-font",
+      "./plugins/withOqusVpn"
     ]
   }
 }

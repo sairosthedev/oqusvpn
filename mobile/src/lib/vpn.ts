@@ -4,7 +4,7 @@
 // ships a Stub (simulates connecting) so the UI + backend flow work in Expo Go /
 // any device today. Phase 2 drops in the real Android VpnService module behind
 // the SAME interface — no UI changes needed.
-import { NativeModules } from "react-native"
+import { NativeEventEmitter, NativeModules } from "react-native"
 
 export type VpnStatus = "disconnected" | "connecting" | "connected"
 
@@ -72,10 +72,35 @@ class StubVpn implements NativeVpn {
   }
 }
 
-// Use the real native module when it's present (Phase 2), else the stub.
-// The native side will register as NativeModules.OqusVpn.
-export const nativeVpn: NativeVpn = (NativeModules as any).OqusVpn
-  ? ((NativeModules as any).OqusVpn as NativeVpn)
-  : new StubVpn()
+// ---- Native bridge adapter (Phase 2) --------------------------------------
+// Wraps the Android OqusVpn module (android/.../OqusVpnModule.kt) in the same
+// NativeVpn interface the app already uses. The module's connect()/disconnect()
+// return Promises; status arrives as "OqusVpnStatus" DeviceEventEmitter events.
+class NativeBridgeVpn implements NativeVpn {
+  private mod: any
+  private emitter: NativeEventEmitter
+  constructor(mod: any) {
+    this.mod = mod
+    this.emitter = new NativeEventEmitter(mod)
+  }
+  connect(cfg: ServerConfig): Promise<void> {
+    return this.mod.connect(cfg)
+  }
+  disconnect(): Promise<void> {
+    return this.mod.disconnect()
+  }
+  onStatus(cb: (s: VpnStatus, detail?: string) => void): () => void {
+    const sub = this.emitter.addListener(
+      "OqusVpnStatus",
+      (e: { status: VpnStatus; detail?: string }) => cb(e.status, e.detail),
+    )
+    return () => sub.remove()
+  }
+}
 
-export const usingRealTunnel = !!(NativeModules as any).OqusVpn
+// Use the real native module when it's present (Phase 2), else the stub.
+// The native side registers as NativeModules.OqusVpn.
+const nativeMod = (NativeModules as any).OqusVpn
+export const nativeVpn: NativeVpn = nativeMod ? new NativeBridgeVpn(nativeMod) : new StubVpn()
+
+export const usingRealTunnel = !!nativeMod

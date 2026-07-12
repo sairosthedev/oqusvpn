@@ -8,5 +8,7 @@
 //   • Production: your deployed backend URL,  https://api.oqus.app
 //
 // You can also override at runtime without a rebuild via EXPO_PUBLIC_OQUS_API.
+// Defaults to the deployed backend; set EXPO_PUBLIC_OQUS_API to a LAN IP for
+// local dev against a PC-hosted server.
 export const API_BASE =
-  process.env.EXPO_PUBLIC_OQUS_API || "http://192.168.100.15:8080"
+  process.env.EXPO_PUBLIC_OQUS_API || "https://oqusvpn-api.onrender.com"
