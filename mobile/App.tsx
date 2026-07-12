@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react"
-import { ActivityIndicator, Alert, Platform, Pressable, Text, TextInput, View } from "react-native"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { ActivityIndicator, Alert, Animated, Easing, Platform, Pressable, Text, TextInput, View } from "react-native"
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context"
 import { StatusBar } from "expo-status-bar"
 import {
@@ -112,7 +112,13 @@ function AuthScreen({ onAuthed }: { onAuthed: (t: string, u: AuthUser) => void }
       <View style={{ width: "100%", maxWidth: 400, marginTop: 32 }}>
         <TextInput style={inputStyle(t)} placeholder="Email" placeholderTextColor={t.mutedForeground} autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} />
         <TextInput style={[inputStyle(t), { marginTop: 12 }]} placeholder="Password" placeholderTextColor={t.mutedForeground} secureTextEntry value={password} onChangeText={setPassword} />
-        <PrimaryButton label={busy ? "…" : mode === "login" ? "Log in" : "Sign up"} onPress={submit} t={t} style={{ marginTop: 16 }} />
+        <PrimaryButton
+          label={busy ? "…" : mode === "login" ? "Log in" : "Sign up"}
+          onPress={submit}
+          t={t}
+          disabled={busy || !email.trim() || !password}
+          style={{ marginTop: 16 }}
+        />
         <Pressable onPress={() => setMode(mode === "login" ? "signup" : "login")} style={{ alignItems: "center", marginTop: 16 }}>
           <Text style={{ fontFamily: font.medium, fontSize: 14, color: t.muted }}>{mode === "login" ? "No account? Sign up" : "Have an account? Log in"}</Text>
         </Pressable>
@@ -144,29 +150,42 @@ function AuthedApp({ token, user, setUser, onLogout }: { token: string; user: Au
   )
 }
 
+const TABS: { key: TabKey; label: string; icon: any }[] = [
+  { key: "home", label: "Home", icon: HomeIcon },
+  { key: "locations", label: "Locations", icon: Globe },
+  { key: "stats", label: "Stats", icon: BarChart3 },
+  { key: "settings", label: "Settings", icon: SettingsIcon },
+]
+
 function Shell() {
   const t = useTheme()
   const [tab, setTab] = useState<TabKey>("home")
-  const tabs: { key: TabKey; label: string; icon: any }[] = [
-    { key: "home", label: "Home", icon: HomeIcon },
-    { key: "locations", label: "Locations", icon: Globe },
-    { key: "stats", label: "Stats", icon: BarChart3 },
-    { key: "settings", label: "Settings", icon: SettingsIcon },
-  ]
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.background }} edges={["top", "left", "right"]}>
       <StatusBar style={t.dark ? "light" : "dark"} />
       <View style={{ flex: 1 }}>
-        {tab === "home" && <HomeScreen onChangeLocation={() => setTab("locations")} />}
-        {tab === "locations" && <LocationsScreen />}
-        {tab === "stats" && <StatisticsScreen />}
-        {tab === "settings" && <SettingsScreen />}
+        <ScreenFade key={tab}>
+          {tab === "home" && <HomeScreen onChangeLocation={() => setTab("locations")} />}
+          {tab === "locations" && <LocationsScreen />}
+          {tab === "stats" && <StatisticsScreen />}
+          {tab === "settings" && <SettingsScreen />}
+        </ScreenFade>
       </View>
       <SafeAreaView edges={["bottom"]}>
-        <TabBar tabs={tabs} active={tab} onChange={setTab} t={t} />
+        <TabBar tabs={TABS} active={tab} onChange={setTab} t={t} />
       </SafeAreaView>
     </SafeAreaView>
   )
+}
+
+/** Fades + lifts a screen in on mount so tab switches don't hard-cut. */
+function ScreenFade({ children }: { children: React.ReactNode }) {
+  const v = useRef(new Animated.Value(0)).current
+  useEffect(() => {
+    Animated.timing(v, { toValue: 1, duration: 180, easing: Easing.out(Easing.quad), useNativeDriver: true }).start()
+  }, [])
+  const translateY = v.interpolate({ inputRange: [0, 1], outputRange: [8, 0] })
+  return <Animated.View style={{ flex: 1, opacity: v, transform: [{ translateY }] }}>{children}</Animated.View>
 }
 
 function promptVerify(token: string, setUser: (u: AuthUser) => void) {

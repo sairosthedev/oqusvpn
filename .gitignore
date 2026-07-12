@@ -20,6 +20,8 @@ tsconfig.tsbuildinfo
 .claude/settings.local.json
 # Electron build output
 release/
+# App icons — generated from the brand mark by `npm run icon`
+build/
 # Native tunnel binaries (fetched per machine — see VPN-SETUP.md)
 resources/bin/*.exe
 resources/bin/*.dll

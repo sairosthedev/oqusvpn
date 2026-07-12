@@ -1,10 +1,10 @@
 import { useState } from "react"
-import { ScrollView, Text, View, Pressable } from "react-native"
+import { Alert, ScrollView, Text, View, Pressable } from "react-native"
 import { Wifi, ShieldCheck, Split, Lock, Globe, User, Bell, Sun, Languages, ServerCog, Smartphone, LogOut, Check } from "lucide-react-native"
 import { useAuth } from "../context/auth-context"
 import { useVpn } from "../context/vpn-context"
 import { useTheme, useAppearance, font, type Appearance } from "../context/theme-context"
-import { Card, IconBubble, Toggle } from "../components/ui"
+import { Card, IconBubble, Toggle, haptic } from "../components/ui"
 
 const categories = [
   { id: "general", label: "General", icon: Globe },
@@ -30,6 +30,19 @@ export function SettingsScreen() {
   const displayName = user.fullName || (demo ? "Guest" : user.email.split("@")[0])
   const initials = displayName.split(" ").filter(Boolean).map((w) => w[0]).slice(0, 2).join("").toUpperCase() || "G"
 
+  // Signing out tears down the tunnel — make it deliberate.
+  const confirmLogout = () => {
+    haptic.warn()
+    Alert.alert(
+      demo ? "Exit guest mode?" : "Sign out?",
+      "This will disconnect the VPN.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: demo ? "Exit" : "Sign out", style: "destructive", onPress: logout },
+      ],
+    )
+  }
+
   return (
     <ScrollView contentContainerStyle={{ padding: 20 }}>
       <Text style={{ fontFamily: font.bold, fontSize: 24, color: t.foreground }}>Settings</Text>
@@ -47,9 +60,19 @@ export function SettingsScreen() {
       </Card>
 
       {/* category selector */}
-      <View style={{ flexDirection: "row", gap: 8, marginBottom: 16 }}>
+      <View accessibilityRole="tablist" style={{ flexDirection: "row", gap: 8, marginBottom: 16 }}>
         {categories.map(({ id, label, icon: Icon }) => (
-          <Pressable key={id} onPress={() => setActive(id)} style={{ flex: 1, alignItems: "center", gap: 4, paddingVertical: 10, borderRadius: 12, backgroundColor: active === id ? t.brandSoft : t.card }}>
+          <Pressable
+            key={id}
+            accessibilityRole="tab"
+            accessibilityLabel={label}
+            accessibilityState={{ selected: active === id }}
+            onPress={() => {
+              if (active !== id) haptic.select()
+              setActive(id)
+            }}
+            style={({ pressed }) => ({ flex: 1, alignItems: "center", gap: 4, paddingVertical: 10, borderRadius: 12, backgroundColor: active === id ? t.brandSoft : t.card, opacity: pressed ? 0.7 : 1 })}
+          >
             <Icon size={18} color={active === id ? t.brand : t.muted} />
             <Text style={{ fontFamily: font.medium, fontSize: 11, color: active === id ? t.brand : t.mutedForeground }}>{label}</Text>
           </Pressable>
@@ -67,9 +90,20 @@ export function SettingsScreen() {
                 <IconBubble icon={Languages} t={t} />
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontFamily: font.semibold, fontSize: 14, color: t.foreground }}>App language</Text>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+                  <View accessibilityRole="radiogroup" style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
                     {languages.map((lang) => (
-                      <Pressable key={lang} onPress={() => setLanguage(lang)} style={{ borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: language === lang ? t.brand : t.surface2 }}>
+                      <Pressable
+                        key={lang}
+                        accessibilityRole="radio"
+                        accessibilityLabel={lang}
+                        accessibilityState={{ checked: language === lang }}
+                        hitSlop={{ top: 8, bottom: 8 }}
+                        onPress={() => {
+                          if (language !== lang) haptic.select()
+                          setLanguage(lang)
+                        }}
+                        style={({ pressed }) => ({ borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: language === lang ? t.brand : t.surface2, opacity: pressed ? 0.7 : 1 })}
+                      >
                         <Text style={{ fontFamily: font.medium, fontSize: 12, color: language === lang ? "#fff" : t.mutedForeground }}>{lang}</Text>
                       </Pressable>
                     ))}
@@ -77,15 +111,25 @@ export function SettingsScreen() {
                 </View>
               </View>
             </View>
-            <Row t={t} icon={Bell} title="Notifications" desc="Rare, factual connection alerts only" control={<Toggle value={notifications} onValueChange={setNotifications} t={t} />} />
+            <Row t={t} icon={Bell} title="Notifications" desc="Rare, factual connection alerts only" control={<Toggle value={notifications} onValueChange={setNotifications} t={t} label="Notifications" />} />
             <View style={{ paddingVertical: 16 }}>
               <View style={{ flexDirection: "row", gap: 12 }}>
                 <IconBubble icon={Sun} t={t} />
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontFamily: font.semibold, fontSize: 14, color: t.foreground }}>Appearance</Text>
-                  <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
+                  <View accessibilityRole="radiogroup" style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
                     {(["auto", "light", "dark"] as Appearance[]).map((mode) => (
-                      <Pressable key={mode} onPress={() => setAppearance(mode)} style={{ flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 12, borderWidth: 1, borderColor: appearance === mode ? t.brand : t.border, backgroundColor: appearance === mode ? t.brandSoft : "transparent", paddingHorizontal: 12, paddingVertical: 8 }}>
+                      <Pressable
+                        key={mode}
+                        accessibilityRole="radio"
+                        accessibilityLabel={`${mode} appearance`}
+                        accessibilityState={{ checked: appearance === mode }}
+                        onPress={() => {
+                          if (appearance !== mode) haptic.select()
+                          setAppearance(mode)
+                        }}
+                        style={{ flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 12, borderWidth: 1, borderColor: appearance === mode ? t.brand : t.border, backgroundColor: appearance === mode ? t.brandSoft : "transparent", paddingHorizontal: 12, paddingVertical: 10 }}
+                      >
                         <View style={{ width: 16, height: 16, borderRadius: 8, borderWidth: 1, borderColor: appearance === mode ? t.brand : t.muted, alignItems: "center", justifyContent: "center" }}>
                           {appearance === mode && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: t.brand }} />}
                         </View>
@@ -101,26 +145,28 @@ export function SettingsScreen() {
 
         {active === "connection" && (
           <View style={{ marginTop: 4 }}>
-            <Row t={t} icon={Wifi} title="Auto-connect" desc="Connect on untrusted Wi-Fi" control={<Toggle value={autoConnect} onValueChange={setAutoConnect} t={t} />} />
+            <Row t={t} icon={Wifi} title="Auto-connect" desc="Connect on untrusted Wi-Fi" control={<Toggle value={autoConnect} onValueChange={setAutoConnect} t={t} label="Auto-connect" />} />
             <View style={{ paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: t.border }}>
               <View style={{ flexDirection: "row", gap: 12 }}>
                 <IconBubble icon={ServerCog} t={t} />
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontFamily: font.semibold, fontSize: 14, color: t.foreground, marginBottom: 12 }}>VPN protocol</Text>
-                  {[["auto", "Auto", "(recommended)"], ["fastest", "Fastest", "(WireGuard)"], ["compatible", "Most compatible", "(OpenVPN)"]].map(([v, l, h]) => (
-                    <Radio key={v} t={t} checked={protocol === v} onPress={() => setProtocol(v)} label={l} hint={h} />
-                  ))}
+                  <View accessibilityRole="radiogroup">
+                    {[["auto", "Auto", "(recommended)"], ["fastest", "Fastest", "(WireGuard)"], ["compatible", "Most compatible", "(OpenVPN)"]].map(([v, l, h]) => (
+                      <Radio key={v} t={t} checked={protocol === v} onPress={() => setProtocol(v)} label={l} hint={h} />
+                    ))}
+                  </View>
                 </View>
               </View>
             </View>
-            <Row t={t} icon={Split} title="Split tunneling" desc="Choose apps that bypass the VPN" control={<Toggle value={splitTunnel} onValueChange={setSplitTunnel} t={t} />} />
-            <Row t={t} icon={Lock} title="Kill switch" desc="Block internet if VPN disconnects" control={<Toggle value={killSwitch} onValueChange={setKillSwitch} t={t} />} last />
+            <Row t={t} icon={Split} title="Split tunneling" desc="Choose apps that bypass the VPN" control={<Toggle value={splitTunnel} onValueChange={setSplitTunnel} t={t} label="Split tunneling" />} />
+            <Row t={t} icon={Lock} title="Kill switch" desc="Block internet if VPN disconnects" control={<Toggle value={killSwitch} onValueChange={setKillSwitch} t={t} label="Kill switch" />} last />
           </View>
         )}
 
         {active === "privacy" && (
           <View style={{ marginTop: 4 }}>
-            <Row t={t} icon={ShieldCheck} title="Private DNS" desc="Encrypt DNS lookups" control={<Toggle value={privateDns} onValueChange={setPrivateDns} t={t} />} />
+            <Row t={t} icon={ShieldCheck} title="Private DNS" desc="Encrypt DNS lookups" control={<Toggle value={privateDns} onValueChange={setPrivateDns} t={t} label="Private DNS" />} />
             <Row t={t} icon={Lock} title="Tracker blocking" desc="1,204 trackers blocked this week" control={<View style={{ backgroundColor: t.successSoft, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4 }}><Text style={{ fontFamily: font.semibold, fontSize: 12, color: t.success }}>Active</Text></View>} />
             <View style={{ flexDirection: "row", gap: 12, paddingVertical: 16 }}>
               <IconBubble icon={ShieldCheck} t={t} />
@@ -137,7 +183,12 @@ export function SettingsScreen() {
               <Row t={t} icon={User} title="Account details" desc={demo ? "Guest mode" : user.email} control={<View style={{ backgroundColor: user.verified ? t.successSoft : t.surface2, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 }}><Text style={{ fontFamily: font.semibold, fontSize: 11, color: user.verified ? t.success : t.mutedForeground }}>{user.verified ? "Verified" : "Unverified"}</Text></View>} />
               <Row t={t} icon={Smartphone} title="Connected devices" desc="Manage up to 10 devices" control={<Text style={{ fontFamily: font.semibold, fontSize: 14, color: t.foreground }}>2 / 10</Text>} last />
             </View>
-            <Pressable onPress={logout} style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1, borderColor: t.border, borderRadius: 12, paddingVertical: 12 }}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={demo ? "Exit guest mode" : "Sign out"}
+              onPress={confirmLogout}
+              style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1, borderColor: t.border, borderRadius: 12, paddingVertical: 14, backgroundColor: pressed ? t.dangerSoft : "transparent" })}
+            >
               <LogOut size={16} color={t.danger} />
               <Text style={{ fontFamily: font.semibold, fontSize: 14, color: t.danger }}>{demo ? "Exit guest mode" : "Sign out"}</Text>
             </Pressable>
@@ -163,7 +214,16 @@ function Row({ t, icon: Icon, title, desc, control, last }: { t: any; icon: any;
 
 function Radio({ t, checked, onPress, label, hint }: { t: any; checked: boolean; onPress: () => void; label: string; hint: string }) {
   return (
-    <Pressable onPress={onPress} style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6 }}>
+    <Pressable
+      accessibilityRole="radio"
+      accessibilityLabel={`${label} ${hint}`}
+      accessibilityState={{ checked }}
+      onPress={() => {
+        if (!checked) haptic.select()
+        onPress()
+      }}
+      style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 10, opacity: pressed ? 0.6 : 1 })}
+    >
       <View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 1, borderColor: checked ? t.brand : t.border, backgroundColor: t.card, alignItems: "center", justifyContent: "center" }}>
         {checked && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: t.brand }} />}
       </View>

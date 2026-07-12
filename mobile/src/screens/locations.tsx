@@ -5,7 +5,7 @@ import { useVpn, type UiServer } from "../context/vpn-context"
 import { useTheme } from "../context/theme-context"
 import { font } from "../context/theme-context"
 import { barsFor, flagEmoji } from "../lib/theme"
-import { Card, Flag, SignalBars } from "../components/ui"
+import { Card, Flag, SignalBars, haptic } from "../components/ui"
 import { LocationsMap } from "../components/locations-map"
 
 const ORDER = ["Recommended", "Africa", "Europe", "Americas", "Asia"]
@@ -29,9 +29,20 @@ export function LocationsScreen() {
         <Text style={{ fontFamily: font.bold, fontSize: 24, color: t.foreground }}>
           Choose <Text style={{ color: t.brand }}>a server</Text>
         </Text>
-        <View style={{ flexDirection: "row", backgroundColor: t.surface2, borderRadius: 12, padding: 4 }}>
+        <View accessibilityRole="tablist" style={{ flexDirection: "row", backgroundColor: t.surface2, borderRadius: 12, padding: 4 }}>
           {(["list", "map"] as const).map((v) => (
-            <Pressable key={v} onPress={() => setView(v)} style={{ flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: view === v ? t.card : "transparent" }}>
+            <Pressable
+              key={v}
+              accessibilityRole="tab"
+              accessibilityLabel={`${v} view`}
+              accessibilityState={{ selected: view === v }}
+              hitSlop={{ top: 10, bottom: 10 }}
+              onPress={() => {
+                if (view !== v) haptic.select()
+                setView(v)
+              }}
+              style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: view === v ? t.card : "transparent", opacity: pressed ? 0.6 : 1 })}
+            >
               {v === "list" ? <List size={14} color={view === v ? t.foreground : t.mutedForeground} /> : <Map size={14} color={view === v ? t.foreground : t.mutedForeground} />}
               <Text style={{ fontFamily: font.medium, fontSize: 13, color: view === v ? t.foreground : t.mutedForeground, textTransform: "capitalize" }}>{v}</Text>
             </Pressable>
@@ -47,7 +58,7 @@ export function LocationsScreen() {
           <LocationsMap />
         </View>
       ) : (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 20 }}>
           <View style={{ position: "relative", marginBottom: 20 }}>
             <View style={{ position: "absolute", left: 14, top: 0, bottom: 0, justifyContent: "center", zIndex: 1 }}>
               <Search size={16} color={t.mutedForeground} />
@@ -75,8 +86,19 @@ export function LocationsScreen() {
                     {list.map((s, i) => {
                       const selected = s.id === server?.id
                       return (
-                        <Pressable key={s.id} onPress={() => selectServer(s.id)} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: i !== list.length - 1 ? 1 : 0, borderBottomColor: t.border, backgroundColor: selected ? t.brand + "10" : "transparent" }}>
-                          <Flag emoji={flagEmoji(s.code)} size={32} />
+                        <Pressable
+                          key={s.id}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${s.country}, ${s.city}${s.fastest ? ", fastest" : ""}`}
+                          accessibilityHint={`${s.ping} milliseconds, ${s.load} percent load`}
+                          accessibilityState={{ selected }}
+                          onPress={() => {
+                            if (!selected) haptic.tap()
+                            selectServer(s.id)
+                          }}
+                          style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: i !== list.length - 1 ? 1 : 0, borderBottomColor: t.border, backgroundColor: selected ? t.brand + "10" : pressed ? t.surface2 : "transparent" })}
+                        >
+                          <Flag emoji={flagEmoji(s.code)} size={32} t={t} />
                           <View style={{ flex: 1 }}>
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                               <Text style={{ fontFamily: font.semibold, fontSize: 14, color: t.foreground }}>{s.country} — {s.city}</Text>

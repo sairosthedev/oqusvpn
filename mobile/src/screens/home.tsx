@@ -1,10 +1,11 @@
+import { useMemo } from "react"
 import { ScrollView, Text, View, Pressable } from "react-native"
 import { Download, Upload, Lock, ShieldCheck, Zap, ChevronRight, MapPin } from "lucide-react-native"
 import { useVpn } from "../context/vpn-context"
 import { useTheme } from "../context/theme-context"
 import { font } from "../context/theme-context"
 import { barsFor, flagEmoji, formatDuration, qualityFor } from "../lib/theme"
-import { Card, ConnectButton, Flag, IconBubble, SignalBars, Toggle } from "../components/ui"
+import { Card, ConnectButton, Flag, IconBubble, SignalBars, Toggle, haptic } from "../components/ui"
 
 const toneColor = (t: any, tone: string) => (tone === "success" ? t.success : tone === "warning" ? t.warning : tone === "danger" ? t.danger : t.brand)
 
@@ -13,7 +14,16 @@ export function HomeScreen({ onChangeLocation }: { onChangeLocation?: () => void
   const { server, servers, status, elapsed, throughput, switching, killSwitch, setKillSwitch, serverIp, toggleConnection, selectServer } = useVpn()
   const connected = status === "connected"
   const quality = server ? qualityFor(server.ping) : null
-  const quick = servers.filter((s) => ["ng-lag", "us-ny", "us-va"].includes(s.id)).slice(0, 2)
+
+  // Next-best two by latency, excluding whatever "Fastest server" already offers.
+  const quick = useMemo(() => {
+    const fastestId = servers.find((s) => s.fastest)?.id
+    return servers
+      .filter((s) => s.id !== fastestId)
+      .slice()
+      .sort((a, b) => a.ping - b.ping)
+      .slice(0, 2)
+  }, [servers])
 
   return (
     <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }}>
@@ -43,7 +53,7 @@ export function HomeScreen({ onChangeLocation }: { onChangeLocation?: () => void
       {server && (
         <Card t={t} style={{ padding: 16 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-            <Flag emoji={flagEmoji(server.code)} size={32} />
+            <Flag emoji={flagEmoji(server.code)} size={32} t={t} />
             <View style={{ flex: 1 }}>
               <Text style={{ fontFamily: font.semibold, fontSize: 14, color: t.foreground }}>{server.city}, {server.country}</Text>
               <Text style={{ fontFamily: font.regular, fontSize: 12, color: t.mutedForeground }}>
@@ -58,7 +68,13 @@ export function HomeScreen({ onChangeLocation }: { onChangeLocation?: () => void
           </View>
 
           <Pressable
-            onPress={onChangeLocation}
+            accessibilityRole="button"
+            accessibilityLabel="Change location"
+            accessibilityHint="Opens the server list"
+            onPress={() => {
+              haptic.tap()
+              onChangeLocation?.()
+            }}
             style={({ pressed }) => ({
               flexDirection: "row", alignItems: "center", gap: 8, marginTop: 14, paddingVertical: 10, paddingHorizontal: 12,
               borderRadius: 999, backgroundColor: pressed ? t.brand + "22" : t.brandSoft,
@@ -88,7 +104,15 @@ export function HomeScreen({ onChangeLocation }: { onChangeLocation?: () => void
         <View>
           <Text style={{ fontFamily: font.semibold, fontSize: 12, color: t.mutedForeground, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8, paddingHorizontal: 4 }}>Quick connect</Text>
           <Card t={t} style={{ padding: 8 }}>
-            <Pressable onPress={() => selectServer(servers.find((s) => s.fastest)?.id ?? servers[0]?.id ?? "")} style={{ flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 }}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Connect to fastest server"
+              onPress={() => {
+                haptic.tap()
+                selectServer(servers.find((s) => s.fastest)?.id ?? servers[0]?.id ?? "")
+              }}
+              style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: pressed ? t.surface2 : "transparent" })}
+            >
               <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: t.brandSoft, alignItems: "center", justifyContent: "center" }}>
                 <Zap size={16} color={t.brand} />
               </View>
@@ -96,8 +120,17 @@ export function HomeScreen({ onChangeLocation }: { onChangeLocation?: () => void
               <ChevronRight size={16} color={t.mutedForeground} />
             </Pressable>
             {quick.map((s) => (
-              <Pressable key={s.id} onPress={() => selectServer(s.id)} style={{ flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 }}>
-                <Flag emoji={flagEmoji(s.code)} size={28} />
+              <Pressable
+                key={s.id}
+                accessibilityRole="button"
+                accessibilityLabel={`Connect to ${s.city}, ${s.country}`}
+                onPress={() => {
+                  haptic.tap()
+                  selectServer(s.id)
+                }}
+                style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: pressed ? t.surface2 : "transparent" })}
+              >
+                <Flag emoji={flagEmoji(s.code)} size={28} t={t} />
                 <Text style={{ flex: 1, fontFamily: font.medium, fontSize: 14, color: t.foreground }}>{s.country} — {s.city}</Text>
                 <ChevronRight size={16} color={t.mutedForeground} />
               </Pressable>
@@ -108,14 +141,12 @@ export function HomeScreen({ onChangeLocation }: { onChangeLocation?: () => void
 
       {/* kill switch */}
       <Card t={t} style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 16 }}>
-        <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: t.surface2, alignItems: "center", justifyContent: "center" }}>
-          <Lock size={16} color={t.muted} />
-        </View>
+        <IconBubble icon={Lock} t={t} />
         <View style={{ flex: 1 }}>
           <Text style={{ fontFamily: font.semibold, fontSize: 14, color: t.foreground }}>Kill switch</Text>
           <Text style={{ fontFamily: font.regular, fontSize: 12, color: t.mutedForeground }}>Block internet if VPN disconnects</Text>
         </View>
-        <Toggle value={killSwitch} onValueChange={setKillSwitch} t={t} />
+        <Toggle value={killSwitch} onValueChange={setKillSwitch} t={t} label="Kill switch" />
       </Card>
     </ScrollView>
   )

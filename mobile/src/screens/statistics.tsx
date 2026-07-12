@@ -15,10 +15,22 @@ export function StatisticsScreen() {
   const { token, demo } = useAuth()
   const { status } = useVpn()
   const [stats, setStats] = useState<UsageStats | null>(null)
+  const [failed, setFailed] = useState(false)
 
   useEffect(() => {
     if (demo || !token) return
-    api.getStats(token).then((r) => setStats(r.stats)).catch(() => {})
+    let alive = true
+    api
+      .getStats(token)
+      .then((r) => {
+        if (!alive) return
+        setStats(r.stats)
+        setFailed(false)
+      })
+      .catch(() => alive && setFailed(true))
+    return () => {
+      alive = false
+    }
   }, [token, status, demo])
 
   const down = stats?.bytesDown ?? 0
@@ -29,7 +41,9 @@ export function StatisticsScreen() {
   const dailyMap = new Map((stats?.daily ?? []).map((d) => [d.day, d.sec]))
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(Date.now() - (6 - i) * 86400000)
-    const key = d.toISOString().slice(0, 10)
+    // Build the key from local Y-M-D. toISOString() would shift to UTC and put
+    // the label and the bucket on different days for anyone west of UTC.
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
     return { label: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getDay()], hours: (dailyMap.get(key) ?? 0) / 3600 }
   })
   const maxH = Math.max(0.1, ...days.map((d) => d.hours))
@@ -42,6 +56,14 @@ export function StatisticsScreen() {
       <Text style={{ fontFamily: font.bold, fontSize: 24, color: t.foreground }}>Statistics</Text>
       <Text style={{ fontFamily: font.regular, fontSize: 13, color: t.mutedForeground, marginBottom: 20 }}>Your real connection and data usage</Text>
 
+      {failed && (
+        <View accessibilityRole="alert" style={{ flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12, backgroundColor: t.dangerSoft, padding: 12, marginBottom: 16 }}>
+          <Text style={{ flex: 1, fontFamily: font.medium, fontSize: 12, lineHeight: 18, color: t.danger }}>
+            Couldn’t load your usage. The numbers below may be out of date.
+          </Text>
+        </View>
+      )}
+
       {/* time protected + chart */}
       <Card t={t} style={{ padding: 24 }}>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -49,9 +71,9 @@ export function StatisticsScreen() {
             <Text style={{ fontFamily: font.medium, fontSize: 13, color: t.mutedForeground }}>Time protected</Text>
             <Text style={{ fontFamily: font.bold, fontSize: 30, color: t.brand, marginTop: 4, fontVariant: ["tabular-nums"] }}>{fmtHM(stats?.durationSec ?? 0)}</Text>
           </View>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: t.successSoft, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 }}>
-            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: t.success }} />
-            <Text style={{ fontFamily: font.semibold, fontSize: 12, color: t.success }}>{status === "connected" ? "Connected" : "Idle"}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: status === "connected" ? t.successSoft : t.surface2, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 }}>
+            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: status === "connected" ? t.success : t.mutedForeground }} />
+            <Text style={{ fontFamily: font.semibold, fontSize: 12, color: status === "connected" ? t.success : t.mutedForeground }}>{status === "connected" ? "Connected" : "Idle"}</Text>
           </View>
         </View>
 

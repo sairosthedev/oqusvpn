@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react"
 import {
   Animated,
   Easing,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -11,11 +12,25 @@ import {
   type ViewStyle,
 } from "react-native"
 import { BlurView } from "expo-blur"
+import * as Haptics from "expo-haptics"
 import Svg, { Rect } from "react-native-svg"
 import { Power } from "lucide-react-native"
 import { RADIUS_APP, type Theme, barsFor } from "../lib/theme"
 import { font, useTheme } from "../context/theme-context"
 export { useTheme }
+
+/** Fire-and-forget haptics — a no-op on web, where the module throws. */
+export const haptic = {
+  tap: () => run(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)),
+  press: () => run(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)),
+  success: () => run(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)),
+  warn: () => run(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)),
+  select: () => run(() => Haptics.selectionAsync()),
+}
+function run(fn: () => Promise<void>) {
+  if (Platform.OS === "web") return
+  fn().catch(() => {})
+}
 
 /** Six-point asterisk mark — three rounded bars at 0/60/120°, exactly like brand.tsx. */
 export function Asterisk({ size = 24, color }: { size?: number; color: string }) {
@@ -41,7 +56,7 @@ export function Wordmark({ size = 20, t }: { size?: number; t: Theme }) {
 
 export function SignalBars({ strength = 4, t }: { strength?: number; t: Theme }) {
   return (
-    <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 2 }}>
+    <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ flexDirection: "row", alignItems: "flex-end", gap: 2 }}>
       {[1, 2, 3, 4].map((bar) => (
         <View
           key={bar}
@@ -52,34 +67,50 @@ export function SignalBars({ strength = 4, t }: { strength?: number; t: Theme })
   )
 }
 
-export function Flag({ emoji, size = 32 }: { emoji: string; size?: number }) {
+export function Flag({ emoji, size = 32, t }: { emoji: string; size?: number; t?: Theme }) {
   return (
-    <View style={{ width: size, height: size, borderRadius: size / 2, overflow: "hidden", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.04)" }}>
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={{ width: size, height: size, borderRadius: size / 2, overflow: "hidden", alignItems: "center", justifyContent: "center", backgroundColor: t?.dark ? t.surface2 : "rgba(0,0,0,0.04)" }}
+    >
       <Text style={{ fontSize: size * 0.72 }}>{emoji}</Text>
     </View>
   )
 }
 
 export function Card({ t, style, children }: { t: Theme; style?: StyleProp<ViewStyle>; children: React.ReactNode }) {
-  return <View style={[styles.card, { backgroundColor: t.card }, style]}>{children}</View>
+  // Dark mode trades the (invisible) drop shadow for a hairline border.
+  const edge: ViewStyle = t.dark ? { borderWidth: StyleSheet.hairlineWidth, borderColor: t.border } : shadow(3, t)
+  return <View style={[styles.card, { backgroundColor: t.card }, edge, style]}>{children}</View>
 }
 
 export function IconBubble({ icon: Icon, t }: { icon: any; t: Theme }) {
   return (
-    <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: t.surface2, alignItems: "center", justifyContent: "center" }}>
+    <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: t.surface2, alignItems: "center", justifyContent: "center" }}>
       <Icon size={16} color={t.muted} />
     </View>
   )
 }
 
-export function Toggle({ value, onValueChange, t }: { value: boolean; onValueChange: (v: boolean) => void; t: Theme }) {
+export function Toggle({ value, onValueChange, t, label }: { value: boolean; onValueChange: (v: boolean) => void; t: Theme; label?: string }) {
   const x = useRef(new Animated.Value(value ? 1 : 0)).current
   useEffect(() => {
     Animated.spring(x, { toValue: value ? 1 : 0, useNativeDriver: true, speed: 16, bounciness: 8 }).start()
   }, [value])
   const translateX = x.interpolate({ inputRange: [0, 1], outputRange: [2, 22] })
   return (
-    <Pressable onPress={() => onValueChange(!value)} style={{ width: 44, height: 24, borderRadius: 12, backgroundColor: value ? t.brand : t.border, justifyContent: "center" }}>
+    <Pressable
+      accessibilityRole="switch"
+      accessibilityLabel={label}
+      accessibilityState={{ checked: value }}
+      hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+      onPress={() => {
+        haptic.select()
+        onValueChange(!value)
+      }}
+      style={{ width: 44, height: 24, borderRadius: 12, backgroundColor: value ? t.brand : t.border, justifyContent: "center" }}
+    >
       <Animated.View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: "#fff", transform: [{ translateX }], ...shadow(2) }} />
     </Pressable>
   )
@@ -99,14 +130,33 @@ export function ConnectButton({ status, onPress, size = 132, t }: { status: "con
     return () => loop.stop()
   }, [connecting])
 
+  // Confirm the tunnel landing, not the tap. Skip the initial mount so a
+  // relaunch into an already-connected session doesn't buzz.
+  const wasConnected = useRef(connected)
+  useEffect(() => {
+    if (connected && !wasConnected.current) haptic.success()
+    wasConnected.current = connected
+  }, [connected])
+
   const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] })
   const core = size * 0.62
 
+  // Announce the action, not the state — VoiceOver reads "<label>, button".
+  const label = connected ? "Disconnect VPN" : connecting ? "Connecting, tap to cancel" : "Connect VPN"
+  const hint = connected ? "Currently connected and protected" : connecting ? "Establishing a secure tunnel" : "Your traffic is not protected"
+
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityHint={hint}
+      accessibilityState={{ busy: connecting }}
       onPressIn={() => Animated.spring(press, { toValue: 0.96, useNativeDriver: true }).start()}
       onPressOut={() => Animated.spring(press, { toValue: 1, useNativeDriver: true }).start()}
-      onPress={onPress}
+      onPress={() => {
+        haptic.press()
+        onPress()
+      }}
     >
       <Animated.View style={{ width: size, height: size, alignItems: "center", justifyContent: "center", transform: [{ scale: press }] }}>
         {connecting && <Radar size={size} color={t.brand} />}
@@ -122,7 +172,7 @@ export function ConnectButton({ status, onPress, size = 132, t }: { status: "con
           />
         )}
         {/* inner core */}
-        <View style={{ width: core, height: core, borderRadius: core / 2, alignItems: "center", justifyContent: "center", backgroundColor: connected ? t.brand : t.card, ...shadow(connected ? 8 : 4) }}>
+        <View style={{ width: core, height: core, borderRadius: core / 2, alignItems: "center", justifyContent: "center", backgroundColor: connected ? t.brand : t.card, ...shadow(connected ? 8 : 4, t) }}>
           <Power size={core * 0.33} strokeWidth={2.5} color={connected ? "#fff" : t.muted} />
         </View>
       </Animated.View>
@@ -152,9 +202,19 @@ function RadarRing({ size, color, delay }: { size: number; color: string; delay:
 }
 
 // --- Buttons ---------------------------------------------------------------
-export function PrimaryButton({ label, onPress, t, style }: { label: string; onPress: () => void; t: Theme; style?: StyleProp<ViewStyle> }) {
+export function PrimaryButton({ label, onPress, t, style, disabled }: { label: string; onPress: () => void; t: Theme; style?: StyleProp<ViewStyle>; disabled?: boolean }) {
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [{ backgroundColor: pressed ? t.brandInk : t.brand, borderRadius: 12, paddingVertical: 14, alignItems: "center" }, style]}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: !!disabled }}
+      disabled={disabled}
+      onPress={() => {
+        haptic.tap()
+        onPress()
+      }}
+      style={({ pressed }) => [{ backgroundColor: pressed ? t.brandInk : t.brand, borderRadius: 12, paddingVertical: 14, alignItems: "center", opacity: disabled ? 0.5 : 1 }, style]}
+    >
       <Text style={{ color: "#fff", fontFamily: font.semibold, fontSize: 15 }}>{label}</Text>
     </Pressable>
   )
@@ -170,8 +230,8 @@ export function txt(t: Theme, kind: "h1" | "h2" | "body" | "muted" | "cap" = "bo
   }
 }
 
-// Frosted glass dock — an icon-only floating bar with a small brand dot marking
-// the active tab. Real backdrop blur (expo-blur) over a translucent tint.
+// iOS-style frosted dock — icon + label stacked, with a rounded highlight
+// capsule behind the active tab (icon + label in the brand color).
 export function TabBar<K extends string>({
   tabs,
   active,
@@ -185,38 +245,62 @@ export function TabBar<K extends string>({
 }) {
   const tint = t.dark ? "rgba(20,24,60,0.55)" : "rgba(255,255,255,0.5)"
   const edge = t.dark ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.65)"
+  const highlight = t.dark ? "rgba(255,255,255,0.13)" : "rgba(20,24,60,0.06)"
   return (
-    <View style={[styles.tabWrap, shadow(12)]}>
+    <View style={[styles.tabWrap, shadow(12, t)]} accessibilityRole="tablist">
       <BlurView intensity={t.dark ? 40 : 55} tint={t.dark ? "dark" : "light"} style={[styles.tabbar, { borderColor: edge }]}>
         <View style={[StyleSheet.absoluteFill, { backgroundColor: tint }]} />
-        {tabs.map(({ key, icon: Icon }) => {
-          const on = key === active
-          return (
-            <TabItem key={key} on={on} Icon={Icon} brand={t.brand} muted={t.mutedForeground} onPress={() => onChange(key)} />
-          )
-        })}
+        {tabs.map(({ key, label, icon: Icon }) => (
+          <TabItem
+            key={key}
+            on={key === active}
+            Icon={Icon}
+            label={label}
+            brand={t.brand}
+            fg={t.foreground}
+            muted={t.mutedForeground}
+            highlight={highlight}
+            onPress={() => {
+              if (key !== active) haptic.select()
+              onChange(key)
+            }}
+          />
+        ))}
       </BlurView>
     </View>
   )
 }
 
-function TabItem({ on, Icon, brand, muted, onPress }: { on: boolean; Icon: any; brand: string; muted: string; onPress: () => void }) {
+function TabItem({ on, Icon, label, brand, fg, muted, highlight, onPress }: { on: boolean; Icon: any; label: string; brand: string; fg: string; muted: string; highlight: string; onPress: () => void }) {
   const s = useRef(new Animated.Value(on ? 1 : 0)).current
   useEffect(() => {
-    Animated.spring(s, { toValue: on ? 1 : 0, useNativeDriver: true, speed: 18, bounciness: 10 }).start()
+    Animated.spring(s, { toValue: on ? 1 : 0, useNativeDriver: true, speed: 16, bounciness: 8 }).start()
   }, [on])
-  const scale = s.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] })
+  const scale = s.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] })
   return (
-    <Pressable onPress={onPress} style={{ alignItems: "center", justifyContent: "center", paddingVertical: 8, paddingHorizontal: 18 }}>
-      <Animated.View style={{ transform: [{ scale }] }}>
-        <Icon size={23} color={on ? brand : muted} strokeWidth={on ? 2.5 : 2} />
-      </Animated.View>
-      <Animated.View style={{ width: 6, height: 6, borderRadius: 3, marginTop: 6, backgroundColor: brand, opacity: s, transform: [{ scale: s }] }} />
+    <Pressable
+      accessibilityRole="tab"
+      accessibilityLabel={label}
+      accessibilityState={{ selected: on }}
+      onPress={onPress}
+      style={({ pressed }) => ({ flex: 1, alignItems: "center", opacity: pressed ? 0.6 : 1 })}
+    >
+      <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 7, paddingHorizontal: 10, borderRadius: 18, overflow: "hidden" }}>
+        <Animated.View style={[StyleSheet.absoluteFill, { borderRadius: 18, backgroundColor: highlight, opacity: s, transform: [{ scale }] }]} />
+        <Icon size={23} color={on ? brand : fg} strokeWidth={2} />
+        <Text numberOfLines={1} style={{ marginTop: 4, fontFamily: on ? font.semibold : font.medium, fontSize: 11, color: on ? brand : muted }}>{label}</Text>
+      </View>
     </Pressable>
   )
 }
 
-export function shadow(elevation: number): ViewStyle {
+/**
+ * Elevation shadow. Dark mode renders a navy shadow against a navy background,
+ * which costs a render pass to draw nothing — so we drop it there and let the
+ * card's own surface color carry the separation instead.
+ */
+export function shadow(elevation: number, t?: Theme): ViewStyle {
+  if (t?.dark) return { elevation: 0 }
   return {
     shadowColor: "#1e265a",
     shadowOffset: { width: 0, height: elevation },
@@ -227,20 +311,20 @@ export function shadow(elevation: number): ViewStyle {
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: 16, ...shadow(3) },
+  card: { borderRadius: 16 },
   tabWrap: {
-    marginHorizontal: 32,
+    marginHorizontal: 12,
     marginBottom: 6,
     marginTop: 6,
-    borderRadius: 30,
+    borderRadius: 32,
   },
   tabbar: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-around",
+    justifyContent: "space-between",
     paddingVertical: 8,
-    paddingHorizontal: 6,
-    borderRadius: 30,
+    paddingHorizontal: 8,
+    borderRadius: 32,
     borderWidth: 1,
     overflow: "hidden",
   },
