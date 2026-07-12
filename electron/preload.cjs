@@ -2,6 +2,14 @@
 // contextIsolation keeps Node out of the page; only these typed calls cross over.
 const { contextBridge, ipcRenderer } = require("electron")
 
+// Backend URL as a RUNTIME setting (src/lib/api.ts prefers this over the
+// build-time VITE_OQUS_API). Baking the URL into the bundle would mean a fresh
+// installer every time the API moves; this way one .exe can be repointed with
+// an env var — and QA can hit a staging backend without a rebuild.
+if (process.env.OQUS_API) {
+  contextBridge.exposeInMainWorld("__OQUS_API__", process.env.OQUS_API)
+}
+
 contextBridge.exposeInMainWorld("oqus", {
   /**
    * Start the tunnel for a server.
